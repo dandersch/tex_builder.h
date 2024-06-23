@@ -22,6 +22,15 @@
   - ...
 */
 
+/* Possible extensions:
+ * circle: draw a filled circle at position with radius and color
+ * line:   draw a line segment between two points with a color
+ * blend:  blend two textures together with a specified blending mode (e.g., alpha blending, additive blending)
+ * resize: resize the texture to a new width and height using interpolation techniques (e.g., bilinear interpolation).
+ * rotate: rotate the texture by a specified angle around a pivot point.
+ * flip:   flip texture horizontally or vertically
+ */
+
 #include <stddef.h>
 
 // NOTE RGBA vs BGRA layout could be set with a macro (?)
@@ -43,9 +52,6 @@ void _rect(texture_builder_t* texer, unsigned int x, unsigned int y, unsigned in
 
 #define circle(...) _circle(&temp, __VA_ARGS__)
 void _circle(texture_builder_t* texer, unsigned int x, unsigned int y, unsigned int radius, color_t color);
-
-#define test(...) _test(&temp, ##__VA_ARGS__)
-void _test(texture_builder_t* texer, color_t rgb);
 
 #define tex_build(tex, ...) ({texture_builder_t temp = _texture_builder(tex); __VA_ARGS__; _create(temp); })
 
