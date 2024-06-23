@@ -41,6 +41,9 @@ void _smear(texture_builder_t* texer, color_t rgb);
 #define rect(...) _rect(&temp, __VA_ARGS__)
 void _rect(texture_builder_t* texer, unsigned int x, unsigned int y, unsigned int width, unsigned int height, color_t color);
 
+#define circle(...) _circle(&temp, __VA_ARGS__)
+void _circle(texture_builder_t* texer, unsigned int x, unsigned int y, unsigned int radius, color_t color);
+
 #define test(...) _test(&temp, ##__VA_ARGS__)
 void _test(texture_builder_t* texer, color_t rgb);
 
@@ -83,13 +86,50 @@ void _rect(texture_builder_t* texer, unsigned int x, unsigned int y, unsigned in
     }
 }
 
-    }
-}
+void _circle(texture_builder_t* texer, unsigned int x, unsigned int y, unsigned int radius, color_t color) {
+    texture_t* tex = &(texer->tex);
 
-void _test(texture_builder_t* texer, color_t rgb) {
-    size_t color_count = texer->tex.width * texer->tex.height;
-    for (int i = 0; i < color_count; i++) {
-          texer->tex.rgb[i % texer->tex.width] = (color_t){0,0,0.5,1};
+    // filled circle using midpoint circle algorithm
+    int cx = radius - 1;
+    int cy = 0;
+    int dx = 1;
+    int dy = 1;
+    int err = dx - (radius << 1);
+
+    while (cx >= cy) {
+        for (int i = x - cx; i <= x + cx; i++) {
+            if (i >= 0 && i < tex->width && y + cy >= 0 && y + cy < tex->height) {
+                size_t index = (y + cy) * tex->width + i;
+                tex->rgb[index] = color;
+            }
+            if (i >= 0 && i < tex->width && y - cy >= 0 && y - cy < tex->height) {
+                size_t index = (y - cy) * tex->width + i;
+                tex->rgb[index] = color;
+            }
+        }
+
+        for (int i = x - cy; i <= x + cy; i++) {
+            if (i >= 0 && i < tex->width && y + cx >= 0 && y + cx < tex->height) {
+                size_t index = (y + cx) * tex->width + i;
+                tex->rgb[index] = color;
+            }
+            if (i >= 0 && i < tex->width && y - cx >= 0 && y - cx < tex->height) {
+                size_t index = (y - cx) * tex->width + i;
+                tex->rgb[index] = color;
+            }
+        }
+
+        if (err <= 0) {
+            cy++;
+            err += dy;
+            dy += 2;
+        }
+
+        if (err > 0) {
+            cx--;
+            dx += 2;
+            err += dx - (radius << 1);
+        }
     }
 }
 
