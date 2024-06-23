@@ -10,7 +10,7 @@ terminate_program()
 
 trap terminate_program EXIT # call on exit
 
-watched_files="test.c"
+watched_files="test\.c|tex_builder.h"
 
 ./build.sh
 
@@ -18,8 +18,10 @@ MESA_GLSL_VERSION_OVERRIDE=430 MESA_GL_VERSION_OVERRIDE=4.3FC ./main &
 bg_pid=$! # capture pid of program
 
 # rebuild dll if source file changed
-inotifywait --recursive --include ${watched_files} --monitor --event modify ./ |
+inotifywait --recursive --include ${watched_files} --monitor --event modify ../ |
    while read file_path file_event file_name; do
         echo "$file_path $file_event $file_name"
+        cd test
         ./build.sh
+        cd ..
    done
