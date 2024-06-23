@@ -45,12 +45,25 @@ void _test(texture_builder_t* texer, color_t rgb);
 
 /* internal */
 #ifdef TEX_BUILDER_IMPLEMENTATION
-#include <stdlib.h>
+#include <stdlib.h> // for malloc & rand()
+#include <math.h>   // for RAND_MAX, ...
 void _noise(texture_builder_t* texer, float intensity)  {
-    size_t color_count = texer->tex.width * texer->tex.height;
-    for (int i = 0; i < color_count; i++) {
-        if (i % 2) { texer->tex.rgb[i] = (color_t){1,0.5,1,1}; }
-        else       { }
+    texture_t* tex = &(texer->tex);
+
+    srand(1);
+
+    for (size_t i = 0; i < tex->width * tex->height; i++) {
+        // Add noise to each color component based on intensity
+        tex->rgb[i].r += intensity * ((float)rand() / (float) RAND_MAX - 0.5f);
+        tex->rgb[i].g += intensity * ((float)rand() / (float) RAND_MAX - 0.5f);
+        tex->rgb[i].b += intensity * ((float)rand() / (float) RAND_MAX - 0.5f);
+
+        // Ensure color components are within [0, 1] range
+        tex->rgb[i].r = fminf(fmaxf(tex->rgb[i].r, 0.0f), 1.0f);
+        tex->rgb[i].g = fminf(fmaxf(tex->rgb[i].g, 0.0f), 1.0f);
+        tex->rgb[i].b = fminf(fmaxf(tex->rgb[i].b, 0.0f), 1.0f);
+    }
+}
     }
 }
 
