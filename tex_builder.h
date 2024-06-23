@@ -23,12 +23,17 @@
 */
 
 /* Possible extensions:
+ * tex_copy(tex): deep copy a texture
+ * stencil/blit(t,x,y): draws tex t to the texture at (x,y)
+ *
  * circle: draw a filled circle at position with radius and color
  * line:   draw a line segment between two points with a color
  * blend:  blend two textures together with a specified blending mode (e.g., alpha blending, additive blending)
  * resize: resize the texture to a new width and height using interpolation techniques (e.g., bilinear interpolation).
  * rotate: rotate the texture by a specified angle around a pivot point.
  * flip:   flip texture horizontally or vertically
+ *
+ * - generate normal maps along texture for operations that add depth (e.g. insets)
  */
 
 #include <stddef.h>
@@ -51,6 +56,12 @@ void _rect(texture_t* tex, unsigned int x, unsigned int y, unsigned int width, u
 
 #define circle(...) _circle(&temp, __VA_ARGS__)
 void _circle(texture_t* tex, unsigned int x, unsigned int y, unsigned int radius, color_t color);
+
+#define flip(...) _flip(&temp, ##__VA_ARGS__)
+void _flip(texture_t* tex);
+
+#define mirror(...) _mirror(&temp, ##__VA_ARGS__)
+void _mirror(texture_t* tex);
 
 #define tex_build(tex, ...) ({texture_t temp = tex; __VA_ARGS__; _create(temp); })
 
@@ -130,6 +141,40 @@ void _circle(texture_t* tex, unsigned int x, unsigned int y, unsigned int radius
             err += dx - (radius << 1);
         }
     }
+}
+
+void _mirror(texture_t* tex) {
+    color_t* mirrored = (color_t*) malloc(tex->width * tex->height * sizeof(color_t));
+
+    /* flip each row horizontally */
+    for (size_t y = 0; y < tex->height; y++) {
+        for (size_t x = 0; x < tex->width; x++) {
+            mirrored[y * tex->width + x] = tex->rgb[y * tex->width + (tex->width - 1 - x)];
+        }
+    }
+
+    for (size_t i = 0; i < tex->width * tex->height; i++) {
+        tex->rgb[i] = mirrored[i];
+    }
+
+    free(mirrored);
+}
+
+void _flip(texture_t* tex) {
+    color_t* flipped = (color_t*)malloc(tex->width * tex->height * sizeof(color_t));
+
+    /* flip each column vertically */
+    for (size_t y = 0; y < tex->height; y++) {
+        for (size_t x = 0; x < tex->width; x++) {
+            flipped[y * tex->width + x] = tex->rgb[(tex->height - 1 - y) * tex->width + x];
+        }
+    }
+
+    for (size_t i = 0; i < tex->width * tex->height; i++) {
+        tex->rgb[i] = flipped[i];
+    }
+
+    free(flipped);
 }
 
 void _grunge(texture_t* tex, float intensity) {
