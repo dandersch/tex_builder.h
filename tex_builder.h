@@ -38,6 +38,9 @@ void _grunge(texture_builder_t* texer, float intensity);
 #define smear(...) _smear(&temp, ##__VA_ARGS__)
 void _smear(texture_builder_t* texer, color_t rgb);
 
+#define rect(...) _rect(&temp, __VA_ARGS__)
+void _rect(texture_builder_t* texer, unsigned int x, unsigned int y, unsigned int width, unsigned int height, color_t color);
+
 #define test(...) _test(&temp, ##__VA_ARGS__)
 void _test(texture_builder_t* texer, color_t rgb);
 
@@ -64,6 +67,22 @@ void _noise(texture_builder_t* texer, float intensity)  {
         tex->rgb[i].b = fminf(fmaxf(tex->rgb[i].b, 0.0f), 1.0f);
     }
 }
+
+void _rect(texture_builder_t* texer, unsigned int x, unsigned int y, unsigned int width, unsigned int height, color_t color)  {
+    texture_t* tex = &(texer->tex);
+
+    /* check if rectangle fits into the texture */
+    if (x + width > tex->width || y + height > tex->height) { return; }
+
+    /* fill rectangle region */
+    for (unsigned int i = y; i < y + height; i++) {
+        for (unsigned int j = x; j < x + width; j++) {
+            size_t index = i * tex->width + j;
+            tex->rgb[index] = color;
+        }
+    }
+}
+
     }
 }
 
