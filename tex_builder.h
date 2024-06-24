@@ -1,56 +1,53 @@
 #pragma once
 /*
-   IDEA: a texture generation api in C that mimicks the following javascript api:
-
-   texture(0x468f).create(); // Sky
-   texture(0x340f).grunge().create(); // Grass
-   texture(0x236f).noise(0x1005, 4.5).noise(Ox100a, 2.5).create(); // Water
+   IDEA: an immediate-mode texture generation api in C that is nice to use
 
    inspiration:
    https://x.com/phoboslab/status/1432363394418491394/photo/1
-*/
 
-/*
-  Limitations:
-  - color (first argument) cannot be specified as an initializer containing commas, e.g. tex_build(texture((color_t){0.2,0.3,0.5}), ...)
-  - requires GNU C-extension of statement expressions
-  - ...
+   Limitations:
+   - ...
 */
 
 /* Possible extensions:
  *
- * stencil/blit(t,x,y): draws tex t to the texture at (x,y)
+ * combining textures:
+ *   stencil/blit(t,x,y): draws tex t to the texture at (x,y)
+ *   blend:  blend two textures together with a specified blending mode (e.g., alpha blending, additive blending)
  *
- * line:   draw a line segment between two points with a color
- * blend:  blend two textures together with a specified blending mode (e.g., alpha blending, additive blending)
- * resize: resize the texture to a new width and height using interpolation techniques (e.g., bilinear interpolation).
- * rotate: rotate the texture by a specified angle around a pivot point.
+ * drawing operations:
+ *   line:   draw a line segment between two points with a color
+ *   resize: resize the texture to a new width and height using interpolation techniques (e.g., bilinear interpolation).
+ *   rotate: rotate the texture by a specified angle around a pivot point.
+ *   text:   draw string with font at position with size
  *
- * outline version of rect, circle
+ * scopes:
+ *   scope_centered() : draw everything at the center
+ *   scope_rect_cut_{top,left,right,bottom}(): rect_cut api scopes
+ *   scope_...
  *
- * generate normal maps along texture for operations that add depth (e.g. insets)
- *
- * cpp wrapper (avoids need of statement expressions)
+ * general:
+ *   make possible to regenerate without reallocating
+ *   outline version of rect, circle
+ *   generate normal maps along texture for operations that add depth (e.g. insets)
+ *   make work in glsl shader code
  */
 
 #include <stddef.h>
 
 // NOTE RGBA vs BGRA layout could be set with a macro (?)
 typedef struct color_t       { float r; float g; float b; float a;        } color_t;
-typedef struct texture_t
-{
+typedef struct texture_t {
     size_t width;
     size_t height;
     color_t* rgb;
 
-    /* unused */
+    /* TODO remove */
     size_t atlas_width;
     size_t atlas_height;
     int owns_buffer;
-
-    /* shows where a subtexture starts OR where the texture atlas is free */
-    size_t x_start; // show subtextures
-    size_t y_start; // for subtextures
+    size_t x_start;
+    size_t y_start;
 } texture_t;
 
 /* wrapper for type safety */
@@ -72,59 +69,41 @@ typedef struct tex_builder_t {
  * api
  */
 /* building api (allocating) */
-tex_builder_t texture(int w, int h, color_t rgb);                     // use for creating texture atlas
-tex_builder_t tex_copy(texture_t tex);                                // deep copy a texture
+tex_builder_t texture(int w, int h, color_t rgb);
+tex_builder_t tex_copy(texture_t tex); // TODO unused
 
 /* building api (non-allocating) */
-
-#define subtexture(...) _subtexture(&temp.tex, __VA_ARGS__)
+#define subtexture(...) _subtexture(&temp.tex, __VA_ARGS__) // TODO unused
 tex_builder_t _subtexture(texture_t* atlas,int w, int h, color_t rgba); // get a texture from an atlas
 
 /* transformation api */
-#define         noise(...) temp = __noise(temp, __VA_ARGS__)
-tex_builder_t __noise(tex_builder_t  tex, float intensity);
+#define        color(...) temp = _color(temp, __VA_ARGS__)
+tex_builder_t _color(tex_builder_t tex, color_t color);
 
-#define rect(...) _rect(&temp, __VA_ARGS__)
-void   _rect(tex_builder_t* tex, unsigned int x, unsigned int y, unsigned int width, unsigned int height, color_t color);
+#define        noise(...) temp = _noise(temp, __VA_ARGS__)
+tex_builder_t _noise(tex_builder_t  tex, float intensity);
+
 #define        flip(...)    temp = _flip(temp, ##__VA_ARGS__)
 tex_builder_t _flip(tex_builder_t texer);
 #define        mirror(...)  temp = _mirror(temp, ##__VA_ARGS__)
 tex_builder_t _mirror(tex_builder_t tex);
 
+/* TODO reimplement these */
+#define rect(...) _rect(&temp, __VA_ARGS__)
+void   _rect(tex_builder_t* tex, unsigned int x, unsigned int y, unsigned int width, unsigned int height, color_t color);
+#define circle(...) _circle(&temp, __VA_ARGS__)
+void   _circle(tex_builder_t* tex, unsigned int x, unsigned int y, unsigned int radius, color_t color);
+
 /* for debugging */
 #define pixel(...) _pixel(temp, ##__VA_ARGS__) // places a pixel at the current {x,y} start
-static void   _pixel(tex_builder_t tex)
-{
+static void   _pixel(tex_builder_t tex) {
    size_t index = (tex.y_start * tex.atlas_width) + tex.x_start;
    tex.tex.rgb[index] = (color_t){1,1,1,1};
 }
 
-#define circle(...) _circle(&temp, __VA_ARGS__)
-void   _circle(tex_builder_t* tex, unsigned int x, unsigned int y, unsigned int radius, color_t color);
+/* called by internally by macros */
+tex_builder_t   __rect(tex_builder_t texer, unsigned int x, unsigned int y, unsigned int width, unsigned int height);
 
-static tex_builder_t   __rect(tex_builder_t texer, unsigned int x, unsigned int y, unsigned int width, unsigned int height)
-{
-    tex_builder_t temp = texer;
-    temp.x_start = x;
-    temp.y_start = y;
-    temp.width   = width;
-    temp.height  = height;
-    return temp;
-}
-
-#define color(...) _color(temp, __VA_ARGS__)
-static void   _color(tex_builder_t tex, color_t color)
-{
-    /* TODO check if we are out of bounds */
-
-    /* color the subtexture */
-    for (size_t y = tex.y_start; y < (tex.y_start + tex.height); y++) {
-        for (size_t x = tex.x_start; x < (tex.x_start + tex.width); x++) {
-            size_t index = (y * tex.atlas_width) + x;
-            tex.tex.rgb[index] = color;
-        }
-    }
-}
 
 /* helper macros */
 #define TOKEN_PASTE(a, b) a##b
@@ -151,40 +130,25 @@ static void   _color(tex_builder_t tex, color_t color)
           temp.width   = UNIQUE_VAR(old_width),   \
           temp.height = UNIQUE_VAR(old_height)))
 
-
-
-
-/* usage: tex_build(build(), transform(), transform(), ...) */
-#define tex_build(tex, ...) ({tex_builder_t temp = tex; __VA_ARGS__; _create(temp); })
-
 /* internal */
 #ifdef TEX_BUILDER_IMPLEMENTATION
 #include <stdlib.h> // for malloc & rand()
 #include <math.h>   // for RAND_MAX, ...
 #include <assert.h> // TODO take in assert macro from user
 #include <time.h>   // for seeding srand()
-void _noise(tex_builder_t* texer, float intensity)  {
-    texture_t* tex = &(texer->tex);
-
-    static unsigned int random = 0;
-    srand(time(0) + random);
-    random = rand();
-
-    for (size_t i = 0; i < tex->atlas_width * tex->height; i++) {
-
-        // Add noise to each color component based on intensity
-        tex->rgb[i].r += intensity * ((float)rand() / (float) RAND_MAX - 0.5f);
-        tex->rgb[i].g += intensity * ((float)rand() / (float) RAND_MAX - 0.5f);
-        tex->rgb[i].b += intensity * ((float)rand() / (float) RAND_MAX - 0.5f);
-
-        // Ensure color components are within [0, 1] range
-        tex->rgb[i].r = fminf(fmaxf(tex->rgb[i].r, 0.0f), 1.0f);
-        tex->rgb[i].g = fminf(fmaxf(tex->rgb[i].g, 0.0f), 1.0f);
-        tex->rgb[i].b = fminf(fmaxf(tex->rgb[i].b, 0.0f), 1.0f);
+tex_builder_t _color(tex_builder_t tex, color_t color) {
+    /* color the subtexture */
+    for (size_t y = tex.y_start; y < (tex.y_start + tex.height); y++) {
+        for (size_t x = tex.x_start; x < (tex.x_start + tex.width); x++) {
+            size_t index = (y * tex.atlas_width) + x;
+            tex.tex.rgb[index] = color;
+        }
     }
+
+    return tex;
 }
 
-tex_builder_t __noise(tex_builder_t texer, float intensity)  {
+tex_builder_t _noise(tex_builder_t texer, float intensity)  {
     texture_t* tex = &(texer.tex);
 
     static unsigned int random = 0;
@@ -207,68 +171,6 @@ tex_builder_t __noise(tex_builder_t texer, float intensity)  {
     }
 
     return texer;
-}
-
-void _rect(tex_builder_t* texer, unsigned int x, unsigned int y, unsigned int width, unsigned int height, color_t color)  {
-    texture_t* tex = &(texer->tex);
-
-    /* check if rectangle fits into the texture */
-    if (x + width > tex->width || y + height > tex->height) { return; }
-
-    /* fill rectangle region */
-    for (unsigned int i = y; i < y + height; i++) {
-        for (unsigned int j = x; j < x + width; j++) {
-            size_t index = i * tex->width + j;
-            tex->rgb[index] = color;
-        }
-    }
-}
-
-void _circle(tex_builder_t* texer, unsigned int x, unsigned int y, unsigned int radius, color_t color) {
-    texture_t* tex = &(texer->tex);
-
-    // filled circle using midpoint circle algorithm
-    int cx = radius - 1;
-    int cy = 0;
-    int dx = 1;
-    int dy = 1;
-    int err = dx - (radius << 1);
-
-    while (cx >= cy) {
-        for (int i = x - cx; i <= x + cx; i++) {
-            if (i >= 0 && i < tex->width && y + cy >= 0 && y + cy < tex->height) {
-                size_t index = (y + cy) * tex->width + i;
-                tex->rgb[index] = color;
-            }
-            if (i >= 0 && i < tex->width && y - cy >= 0 && y - cy < tex->height) {
-                size_t index = (y - cy) * tex->width + i;
-                tex->rgb[index] = color;
-            }
-        }
-
-        for (int i = x - cy; i <= x + cy; i++) {
-            if (i >= 0 && i < tex->width && y + cx >= 0 && y + cx < tex->height) {
-                size_t index = (y + cx) * tex->width + i;
-                tex->rgb[index] = color;
-            }
-            if (i >= 0 && i < tex->width && y - cx >= 0 && y - cx < tex->height) {
-                size_t index = (y - cx) * tex->width + i;
-                tex->rgb[index] = color;
-            }
-        }
-
-        if (err <= 0) {
-            cy++;
-            err += dy;
-            dy += 2;
-        }
-
-        if (err > 0) {
-            cx--;
-            dx += 2;
-            err += dx - (radius << 1);
-        }
-    }
 }
 
 tex_builder_t _mirror(tex_builder_t texer) {
@@ -327,6 +229,32 @@ tex_builder_t texture(int w, int h, color_t rgba) {
     return texer;
 }
 
+tex_builder_t tex_copy(texture_t tex) {
+    tex_builder_t texer;
+    texer.tex.width       = tex.width;
+    texer.tex.height      = tex.height;
+    texer.tex.rgb         = malloc(tex.width * tex.height * sizeof(color_t));
+    for (int i = 0; i < (tex.width * tex.height); i++)
+    {
+        texer.tex.rgb[i] = tex.rgb[i];
+    }
+    return texer;
+}
+
+tex_builder_t __rect(tex_builder_t texer, unsigned int x, unsigned int y, unsigned int width, unsigned int height) {
+    tex_builder_t temp = texer;
+    temp.x_start = x;
+    temp.y_start = y;
+    temp.width   = width;
+    temp.height  = height;
+    return temp;
+}
+
+texture_t _create(tex_builder_t texer) {
+    return texer.tex;
+}
+
+
 tex_builder_t _subtexture(texture_t* atlas, int w, int h, color_t rgba) {
     assert(atlas->atlas_width >= w && atlas->atlas_height >= h && "Subtexture is bigger than the atlas\n");
 
@@ -367,18 +295,64 @@ tex_builder_t _subtexture(texture_t* atlas, int w, int h, color_t rgba) {
     }
     return texer;
 }
+void _rect(tex_builder_t* texer, unsigned int x, unsigned int y, unsigned int width, unsigned int height, color_t color)  {
+    texture_t* tex = &(texer->tex);
 
-tex_builder_t tex_copy(texture_t tex) {
-    tex_builder_t texer;
-    texer.tex.width       = tex.width;
-    texer.tex.height      = tex.height;
-    texer.tex.rgb         = malloc(tex.width * tex.height * sizeof(color_t));
-    for (int i = 0; i < (tex.width * tex.height); i++)
-    {
-        texer.tex.rgb[i] = tex.rgb[i];
+    /* check if rectangle fits into the texture */
+    if (x + width > tex->width || y + height > tex->height) { return; }
+
+    /* fill rectangle region */
+    for (unsigned int i = y; i < y + height; i++) {
+        for (unsigned int j = x; j < x + width; j++) {
+            size_t index = i * tex->width + j;
+            tex->rgb[index] = color;
+        }
     }
-    return texer;
 }
+void _circle(tex_builder_t* texer, unsigned int x, unsigned int y, unsigned int radius, color_t color) {
+    texture_t* tex = &(texer->tex);
 
-texture_t _create(tex_builder_t texer) { return texer.tex; }
+    // filled circle using midpoint circle algorithm
+    int cx = radius - 1;
+    int cy = 0;
+    int dx = 1;
+    int dy = 1;
+    int err = dx - (radius << 1);
+
+    while (cx >= cy) {
+        for (int i = x - cx; i <= x + cx; i++) {
+            if (i >= 0 && i < tex->width && y + cy >= 0 && y + cy < tex->height) {
+                size_t index = (y + cy) * tex->width + i;
+                tex->rgb[index] = color;
+            }
+            if (i >= 0 && i < tex->width && y - cy >= 0 && y - cy < tex->height) {
+                size_t index = (y - cy) * tex->width + i;
+                tex->rgb[index] = color;
+            }
+        }
+
+        for (int i = x - cy; i <= x + cy; i++) {
+            if (i >= 0 && i < tex->width && y + cx >= 0 && y + cx < tex->height) {
+                size_t index = (y + cx) * tex->width + i;
+                tex->rgb[index] = color;
+            }
+            if (i >= 0 && i < tex->width && y - cx >= 0 && y - cx < tex->height) {
+                size_t index = (y - cx) * tex->width + i;
+                tex->rgb[index] = color;
+            }
+        }
+
+        if (err <= 0) {
+            cy++;
+            err += dy;
+            dy += 2;
+        }
+
+        if (err > 0) {
+            cx--;
+            dx += 2;
+            err += dx - (radius << 1);
+        }
+    }
+}
 #endif
