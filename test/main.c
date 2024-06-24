@@ -292,7 +292,7 @@ int main(int argc, char* args[])
     int mouse_x, mouse_y;
     float pos_x = 0, pos_y = 0;
 
-    SDL_GL_SetSwapInterval(1); // disable vsync
+    SDL_GL_SetSwapInterval(1); // turn vsync on/off
 
     unsigned int current_time = 0;
     unsigned int last_time    = SDL_GetTicks();
@@ -303,7 +303,15 @@ int main(int argc, char* args[])
         dt = (current_time - last_time) / 1000.0f; // milliseconds to seconds
         last_time = current_time;
 
-        printf("%f\n", dt);
+        /* print out fps every second */
+        {
+            static float timer  = 0;
+            timer += dt;
+            if (timer > 1.0f) {
+                printf("FPS: %f\n", 1.0f/dt);
+                timer = 0;
+            }
+        }
 
         /* check if dll has changed on disk */
         if ((stat(DLL_FILENAME, &attr) == 0) && (dll_last_mod != attr.st_mtime))
