@@ -19,7 +19,7 @@
  *   line:   draw a line segment between two points with a color
  *   resize: resize the texture to a new width and height using interpolation techniques (e.g., bilinear interpolation).
  *   rotate: rotate the texture by a specified angle around a pivot point.
- *   text:   draw string with font at position with size
+ *   text:   draw string with font at position with size or fit the rect
  *
  * scopes:
  *   scope_centered() : draw everything at the center
@@ -31,26 +31,16 @@
  *   outline version of rect, circle
  *   generate normal maps along texture for operations that add depth (e.g. insets)
  *   make work in glsl shader code
+ *   check if it works with C++ and MSVC
  */
 
 #include <stddef.h>
 
-// NOTE RGBA vs BGRA layout could be set with a macro (?)
+// NOTE RGBA vs BGRA layout could be set with a macro
 typedef struct color_t       { float r; float g; float b; float a;        } color_t;
-typedef struct texture_t {
-    size_t width;
-    size_t height;
-    color_t* rgb;
+typedef struct texture_t     { size_t width; size_t height; color_t* rgb; } texture_t;
 
-    /* TODO remove */
-    size_t atlas_width;
-    size_t atlas_height;
-    int owns_buffer;
-    size_t x_start;
-    size_t y_start;
-} texture_t;
-
-/* wrapper for type safety */
+/* used internally */
 typedef struct tex_builder_t {
     texture_t tex;
 
@@ -72,9 +62,6 @@ typedef struct tex_builder_t {
 tex_builder_t texture(int w, int h, color_t rgb);
 tex_builder_t tex_copy(texture_t tex); // TODO unused
 
-/* building api (non-allocating) */
-#define subtexture(...) _subtexture(&temp.tex, __VA_ARGS__) // TODO unused
-tex_builder_t _subtexture(texture_t* atlas,int w, int h, color_t rgba); // get a texture from an atlas
 
 /* transformation api */
 #define        color(...) temp = _color(temp, __VA_ARGS__)
@@ -95,10 +82,11 @@ void   _rect(tex_builder_t* tex, unsigned int x, unsigned int y, unsigned int wi
 void   _circle(tex_builder_t* tex, unsigned int x, unsigned int y, unsigned int radius, color_t color);
 
 /* for debugging */
-#define pixel(...) _pixel(temp, ##__VA_ARGS__) // places a pixel at the current {x,y} start
-static void   _pixel(tex_builder_t tex) {
+#define      pixel(...) temp = _pixel(temp, ##__VA_ARGS__) // places a pixel at the current {x,y} start
+static tex_builder_t _pixel(tex_builder_t tex) {
    size_t index = (tex.y_start * tex.atlas_width) + tex.x_start;
    tex.tex.rgb[index] = (color_t){1,1,1,1};
+   return tex;
 }
 
 /* called by internally by macros */
@@ -206,6 +194,7 @@ tex_builder_t _flip(tex_builder_t texer) {
 tex_builder_t texture(int w, int h, color_t rgba) {
     tex_builder_t texer;
 
+    /* init builder */
     texer.atlas_width  = w;
     texer.atlas_height = h;
     texer.width        = w;
@@ -214,18 +203,15 @@ tex_builder_t texture(int w, int h, color_t rgba) {
     texer.y_start      = 0;
     texer.i            = 0;
 
-    texer.tex.width        = w;
-    texer.tex.height       = h;
-    texer.tex.atlas_width  = w; // TODO old
-    texer.tex.atlas_height = h; // TODO old
-    texer.tex.x_start      = 0;
-    texer.tex.y_start      = 0;
-    texer.tex.owns_buffer  = 1;
-    texer.tex.rgb         = malloc(w * h * sizeof(color_t));
+    /* init texture */
+    texer.tex.width    = w;
+    texer.tex.height   = h;
+    texer.tex.rgb      = malloc(w * h * sizeof(color_t));
     for (int i = 0; i < (w * h); i++)
     {
         texer.tex.rgb[i] = rgba;
     }
+
     return texer;
 }
 
@@ -254,47 +240,6 @@ texture_t _create(tex_builder_t texer) {
     return texer.tex;
 }
 
-
-tex_builder_t _subtexture(texture_t* atlas, int w, int h, color_t rgba) {
-    assert(atlas->atlas_width >= w && atlas->atlas_height >= h && "Subtexture is bigger than the atlas\n");
-
-    tex_builder_t texer;
-    texture_t* subtex = &texer.tex;
-
-    size_t start_index = (atlas->width * atlas->y_start) + atlas->x_start;
-
-    // Set the subtexture properties
-    subtex->width = w;
-    subtex->height = h;
-
-    subtex->rgb          = &(atlas->rgb[start_index]); // set buffer pointer to start of subtexture
-    subtex->atlas_width  = atlas->width;
-    subtex->atlas_height = atlas->height;
-    subtex->owns_buffer  = 0;                         // subtexture did not allocate buffer
-    subtex->x_start      = atlas->x_start;
-    subtex->y_start      = atlas->y_start;
-
-    /* push onto the atlas */
-    assert(!(atlas->x_start + subtex->width > atlas->atlas_width) && "Pushed beyond atlas width"); // TODO handle this case
-    if (atlas->x_start + subtex->width == atlas->atlas_width) {
-        atlas->x_start       = 0;
-        assert(!(atlas->y_start + subtex->height > atlas->atlas_height) && "Pushed beyond atlas height"); // TODO handle this case
-        atlas->y_start      += subtex->height;
-    } else {
-        atlas->x_start       = atlas->x_start + subtex->width;
-    }
-
-    /* color the subtexture */
-    for (size_t y = 0; y < h; y++) {
-        for (size_t x = 0; x < w; x++) {
-            size_t index = (y * atlas->atlas_width) + x;
-            if (x < atlas->atlas_width && y < atlas->atlas_height) {
-                subtex->rgb[index] = rgba;
-            }
-        }
-    }
-    return texer;
-}
 void _rect(tex_builder_t* texer, unsigned int x, unsigned int y, unsigned int width, unsigned int height, color_t color)  {
     texture_t* tex = &(texer->tex);
 
