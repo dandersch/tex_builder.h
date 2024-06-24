@@ -90,10 +90,13 @@ void   _mirror(tex_builder_t* tex);
 #include <stdlib.h> // for malloc & rand()
 #include <math.h>   // for RAND_MAX, ...
 #include <assert.h> // TODO take in assert macro from user
+#include <time.h>   // for seeding srand()
 void _noise(tex_builder_t* texer, float intensity)  {
     texture_t* tex = &(texer->tex);
 
-    srand(1);
+    static unsigned int random = 0;
+    srand(time(0) + random);
+    random = rand();
 
     for (size_t i = 0; i < tex->atlas_width * tex->height; i++) {
 
