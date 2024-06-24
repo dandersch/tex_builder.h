@@ -62,6 +62,14 @@ typedef struct tex_builder_t {
 tex_builder_t texture(int w, int h, color_t rgb);
 tex_builder_t tex_copy(texture_t tex); // TODO unused
 
+/* scope api */
+#define scope_tex_build(tex, builder) _scope_tex_build(tex, builder)
+#define scope_tex_rect(x,y,h,w)       _scope_tex_rect(x,y,h,w)
+
+#define scope_rectcut_top(cut)        _scope_rectcut_top(cut)
+#define scope_rectcut_left(cut)       _scope_rectcut_left(cut)
+#define scope_rectcut_right(cut)      _scope_rectcut_right(cut)
+#define scope_rectcut_bottom(cut)     _scope_rectcut_bottom(cut)
 
 /* transformation api */
 #define        color(...) temp = _color(temp, __VA_ARGS__)
@@ -99,9 +107,9 @@ tex_builder_t   __rect(tex_builder_t texer, unsigned int x, unsigned int y, unsi
 #define UNIQUE_VAR(name) CONCAT(name, __LINE__)
 #define min(a, b) ((a < b) ? a : b)
 
-#define scope_tex_build(tex, builder) \
+#define _scope_tex_build(tex, builder) \
     for (tex_builder_t temp = builder; temp.i == 0; (temp.i+=1, atlas = _create(temp)))
-#define scope_tex_rect(x,y,h,w) \
+#define _scope_tex_rect(x,y,h,w) \
     for (int UNIQUE_VAR(old_x_start) = temp.x_start, \
              UNIQUE_VAR(old_y_start) = temp.y_start, \
              UNIQUE_VAR(old_width)   = temp.width,   \
@@ -117,6 +125,12 @@ tex_builder_t   __rect(tex_builder_t texer, unsigned int x, unsigned int y, unsi
           temp.y_start = UNIQUE_VAR(old_y_start), \
           temp.width   = UNIQUE_VAR(old_width),   \
           temp.height = UNIQUE_VAR(old_height)))
+
+#define _scope_rectcut_top(cut)    _scope_tex_rect(0, 0, cut, temp.width)
+#define _scope_rectcut_left(cut)   _scope_tex_rect(0, 0, temp.height, cut)
+#define _scope_rectcut_right(cut)  _scope_tex_rect((temp.width - cut), 0, temp.height, cut)
+#define _scope_rectcut_bottom(cut) _scope_tex_rect(0, (temp.height - cut), cut, temp.width)
+
 
 /* internal */
 #ifdef TEX_BUILDER_IMPLEMENTATION

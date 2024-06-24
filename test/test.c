@@ -39,23 +39,63 @@ __attribute__((visibility("default"))) int generate_textures(state_t* state, flo
             scope_tex_rect(0,0,32,32) {
                 color(RED);
                 noise(0.3);
-                scope_tex_rect(10,20,10,10) {
+                scope_tex_rect(10,10,10,10) {
                     color(BLUE);
                     pixel();
                     flip();
                     mirror();
                 }
-                scope_tex_rect(28,28,4,4) {
-                    color(BLUE);
-                    pixel();
-                    mirror();
+                scope_rectcut_top(8) {
+                    color(YELLOW);
+                }
+                scope_rectcut_left(8) {
+                    color(YELLOW);
+                }
+                scope_rectcut_bottom(8) {
+                    color(YELLOW);
+                }
+                scope_rectcut_right(8) {
+                    color(GRAY);
                 }
             }
-            scope_tex_rect(32,0,32,32)  { color(BROWN);   }
+            scope_tex_rect(32,0,32,32)  {
+                color(BROWN);
+                scope_rectcut_top(8) {
+                    pixel();
+                    color(YELLOW);
+                }
+                scope_rectcut_left(8) {
+                    color(YELLOW);
+                }
+                scope_rectcut_bottom(8) {
+                    color(GRAY);
+                }
+            }
             scope_tex_rect(64,0,32,32)  { color(GREEN);   }
-            scope_tex_rect(32,32,32,32) { color(YELLOW);  }
-            scope_tex_rect(0,32,32,32)  { color(MAGENTA); }
-            scope_tex_rect(64,32,32,32) { color(GRAY);    }
+            scope_tex_rect(32,32,32,32) {
+                color(YELLOW);
+                scope_rectcut_top(8) {
+                    color(GRAY);
+                }
+                scope_rectcut_bottom(8) {
+                    color(GRAY);
+                }
+                scope_rectcut_right(8) {
+                    color(GRAY);
+                }
+            }
+            scope_tex_rect(0,32,32,32)  {
+                color(MAGENTA);
+                scope_rectcut_left(8) {
+                    color(YELLOW);
+                }
+            }
+            scope_tex_rect(64,32,32,32) {
+                color(GRAY);
+                scope_rectcut_left(8) {
+                    color(YELLOW);
+                }
+            }
             scope_tex_rect(0,64,32,32)  { color(BLUE);    }
             scope_tex_rect(32,64,32,32) { color(ORANGE);  }
             scope_tex_rect(64,64,32,32) { color(CYAN);    }
