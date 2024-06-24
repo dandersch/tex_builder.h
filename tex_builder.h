@@ -112,9 +112,7 @@ static void   _color(tex_builder_t tex, color_t color)
     for (size_t y = tex.y_start; y < (tex.y_start + tex.height); y++) {
         for (size_t x = tex.x_start; x < (tex.x_start + tex.width); x++) {
             size_t index = (y * tex.atlas_width) + x;
-//            if (x < tex.atlas_width && y < tex.atlas_height) {
-                tex.tex.rgb[index] = color;
-//            }
+            tex.tex.rgb[index] = color;
         }
     }
 }
@@ -134,18 +132,31 @@ void   _flip(tex_builder_t* tex);
 #define mirror(...) _mirror(&temp, ##__VA_ARGS__)
 void   _mirror(tex_builder_t* tex);
 
+/* helper macros */
 #define TOKEN_PASTE(a, b) a##b
 #define CONCAT(a,b) TOKEN_PASTE(a,b)
 #define UNIQUE_VAR(name) CONCAT(name, __LINE__)
-/* Usage: scoped_begin_end(printf("First"), printf("Last\n")) { ... } */
-#define scoped_begin_end(start, end) \
-    for (int UNIQUE_VAR(_i_) = (start, 0); !UNIQUE_VAR(_i_); (UNIQUE_VAR(_i_) += 1), end)
-
+#define min(a, b) ((a < b) ? a : b)
 
 #define scope_tex_build(tex, builder) \
     for (tex_builder_t temp = builder; temp.i == 0; (temp.i+=1, atlas = _create(temp)))
 #define scope_tex_rect(x,y,h,w) \
-    for (int UNIQUE_VAR(old_x_start) = temp.x_start, UNIQUE_VAR(old_y_start) = temp.y_start, UNIQUE_VAR(old_width) = temp.width, UNIQUE_VAR(old_height) = temp.height, UNIQUE_VAR(j) = (temp = __rect(temp, x + UNIQUE_VAR(old_x_start),y + UNIQUE_VAR(old_y_start),w,h), 0); UNIQUE_VAR(j) == 0; (UNIQUE_VAR(j)+=1, temp.x_start = UNIQUE_VAR(old_x_start), temp.y_start = UNIQUE_VAR(old_y_start), temp.width = UNIQUE_VAR(old_width), temp.height = UNIQUE_VAR(old_height)))
+    for (int UNIQUE_VAR(old_x_start) = temp.x_start, \
+             UNIQUE_VAR(old_y_start) = temp.y_start, \
+             UNIQUE_VAR(old_width)   = temp.width,   \
+             UNIQUE_VAR(old_height)  = temp.height,  \
+             UNIQUE_VAR(j)           = (temp = __rect(temp,                        \
+                                                      x + UNIQUE_VAR(old_x_start), \
+                                                      y + UNIQUE_VAR(old_y_start), \
+                                                      min(w,temp.width),           \
+                                                      min(h,temp.height)),         \
+                                        0);                                        \
+         UNIQUE_VAR(j) == 0; \
+         (UNIQUE_VAR(j)+=1,                       \
+          temp.x_start = UNIQUE_VAR(old_x_start), \
+          temp.y_start = UNIQUE_VAR(old_y_start), \
+          temp.width   = UNIQUE_VAR(old_width),   \
+          temp.height = UNIQUE_VAR(old_height)))
 
 
 
