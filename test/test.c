@@ -5,6 +5,17 @@
 
 #include <stdio.h>
 
+
+#define TEXTURE_ATLAS_WIDTH  96
+#define TEXTURE_ATLAS_HEIGHT 96
+
+__attribute__((visibility("default"))) int alloc_texture(state_t* state)
+{
+    state->tex_builder = texture(TEXTURE_ATLAS_WIDTH, TEXTURE_ATLAS_HEIGHT);
+
+    return 1;
+}
+
 /* usage */
 __attribute__((visibility("default"))) int generate_textures(state_t* state, float dt)
 {
@@ -35,7 +46,8 @@ __attribute__((visibility("default"))) int generate_textures(state_t* state, flo
 
         /* api usage */
         texture_t atlas;
-        scope_tex_build(atlas, texture(96,96, NONE)) {
+        scope_tex_build(atlas, state->tex_builder) {
+            color(NONE);
             scope_tex_rect(0,0,32,32) {
                 color(RED);
                 noise(0.3);

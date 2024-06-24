@@ -11,6 +11,7 @@
 #include <sys/stat.h>
 #define DLL_FILENAME "./code.dll"
 static int    (*generate_textures)(state_t*, float);
+static int    (*alloc_texture)(state_t*);
 static time_t dll_last_mod;
 static void*  dll_handle;
 static state_t* state = NULL;
@@ -144,7 +145,9 @@ int platform_load_code()
         dll_handle = SDL_LoadObject(DLL_FILENAME);
     }
 
+    alloc_texture     = (int (*)(state_t*)) SDL_LoadFunction(dll_handle, "alloc_texture");
     generate_textures = (int (*)(state_t*,float)) SDL_LoadFunction(dll_handle, "generate_textures");
+    if (!alloc_texture)     { printf("Error finding function\n"); return 0; }
     if (!generate_textures) { printf("Error finding function\n"); return 0; }
 
     return 1;
@@ -174,7 +177,7 @@ int main(int argc, char* args[])
     dll_last_mod = attr.st_mtime;
 
     state = malloc(sizeof(state_t));
-    generate_textures(state,0);
+    alloc_texture(state);
 
     /* init glew, vao, vbo, texture & upload texture */
     {
@@ -213,9 +216,6 @@ int main(int argc, char* args[])
         // how to sample the texture when its larger or smaller
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-
-        /* upload texture */
-        upload_textures(state);
 
         /* enable blending for transparency */
         glEnable(GL_BLEND);
@@ -326,11 +326,11 @@ int main(int argc, char* args[])
         {
             generate_textures(state,dt);
             upload_textures(state);
-            /* free allocated textures */
-            for (int i = 0; i < TEXTURE_COUNT; i ++)
-            {
-                free(state->tex[i].rgb);
-            }
+            ///* free allocated textures */
+            //for (int i = 0; i < TEXTURE_COUNT; i ++)
+            //{
+            //    free(state->tex[i].rgb);
+            //}
         }
 
         /* event handling */

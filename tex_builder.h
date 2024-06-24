@@ -22,9 +22,10 @@
  *   text:   draw string with font at position with size or fit the rect
  *
  * scopes:
- *   scope_centered() : draw everything at the center
- *   scope_rect_cut_{top,left,right,bottom}(): rect_cut api scopes
- *   scope_...
+ *   scope_centered(): draw everything at the center
+ *   scope_tex_push_rect(w,h): push a texture of size h,w onto the current texture without
+ *                             caring where it ends up (useful for building atlases).
+ *                             Maybe make it so that a rect_t can be passed in that gets filled with x,y,h,w.
  *
  * general:
  *   make possible to regenerate without reallocating
@@ -32,6 +33,8 @@
  *   generate normal maps along texture for operations that add depth (e.g. insets)
  *   make work in glsl shader code
  *   check if it works with C++ and MSVC
+ *
+ *   push/pop pragma warning about shadowing variables when nesting scope_tex_build's
  */
 
 #include <stddef.h>
@@ -44,6 +47,7 @@ typedef struct texture_t     { size_t width; size_t height; color_t* rgb; } text
 typedef struct tex_builder_t {
     texture_t tex;
 
+    /* size of the whole texture NOTE: same as tex.{width,height} */
     size_t atlas_width;
     size_t atlas_height;
 
@@ -51,7 +55,7 @@ typedef struct tex_builder_t {
     int x_start, y_start;
     int width, height;
 
-    /* used in for loop macros */
+    /* used in for-loop macros */
     int i;
 } tex_builder_t;
 
@@ -59,7 +63,7 @@ typedef struct tex_builder_t {
  * api
  */
 /* building api (allocating) */
-tex_builder_t texture(int w, int h, color_t rgb);
+tex_builder_t texture(int w, int h);
 tex_builder_t tex_copy(texture_t tex); // TODO unused
 
 /* scope api */
@@ -205,7 +209,7 @@ tex_builder_t _flip(tex_builder_t texer) {
     return texer;
 }
 
-tex_builder_t texture(int w, int h, color_t rgba) {
+tex_builder_t texture(int w, int h) {
     tex_builder_t texer;
 
     /* init builder */
@@ -221,10 +225,6 @@ tex_builder_t texture(int w, int h, color_t rgba) {
     texer.tex.width    = w;
     texer.tex.height   = h;
     texer.tex.rgb      = malloc(w * h * sizeof(color_t));
-    for (int i = 0; i < (w * h); i++)
-    {
-        texer.tex.rgb[i] = rgba;
-    }
 
     return texer;
 }
