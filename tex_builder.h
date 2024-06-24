@@ -86,6 +86,10 @@ tex_builder_t __noise(tex_builder_t  tex, float intensity);
 
 #define rect(...) _rect(&temp, __VA_ARGS__)
 void   _rect(tex_builder_t* tex, unsigned int x, unsigned int y, unsigned int width, unsigned int height, color_t color);
+#define        flip(...)    temp = _flip(temp, ##__VA_ARGS__)
+tex_builder_t _flip(tex_builder_t texer);
+#define        mirror(...)  temp = _mirror(temp, ##__VA_ARGS__)
+tex_builder_t _mirror(tex_builder_t tex);
 
 /* for debugging */
 #define pixel(...) _pixel(temp, ##__VA_ARGS__) // places a pixel at the current {x,y} start
@@ -97,12 +101,6 @@ static void   _pixel(tex_builder_t tex)
 
 #define circle(...) _circle(&temp, __VA_ARGS__)
 void   _circle(tex_builder_t* tex, unsigned int x, unsigned int y, unsigned int radius, color_t color);
-
-/* NOTE: these allocate */
-#define        flip(...) temp = _flip(temp, ##__VA_ARGS__)
-tex_builder_t _flip(tex_builder_t texer);
-#define mirror(...) _mirror(&temp, ##__VA_ARGS__)
-void   _mirror(tex_builder_t* tex);
 
 static tex_builder_t   __rect(tex_builder_t texer, unsigned int x, unsigned int y, unsigned int width, unsigned int height)
 {
@@ -273,48 +271,32 @@ void _circle(tex_builder_t* texer, unsigned int x, unsigned int y, unsigned int 
     }
 }
 
-void _mirror(tex_builder_t* texer) {
-    texture_t* tex = &(texer->tex);
-    color_t* mirrored = (color_t*) malloc(tex->width * tex->height * sizeof(color_t));
-
-    /* mirror each row horizontally */
-    for (size_t y = 0; y < tex->height; y++) {
-        for (size_t x = 0; x < tex->width; x++) {
-            mirrored[y * tex->width + x] = tex->rgb[y * tex->width + (tex->width - 1 - x)];
+tex_builder_t _mirror(tex_builder_t texer) {
+    /* mirror texture column by column */
+    for (size_t y = 0; y < texer.height; y++) {
+        for (size_t x = 0; x < texer.width / 2; x++) {
+            size_t idx_left = (texer.y_start + y) * texer.atlas_width + (texer.x_start + x);
+            size_t idx_right = (texer.y_start + y) * texer.atlas_width + (texer.x_start + texer.width - 1 - x);
+            color_t temp = texer.tex.rgb[idx_left];
+            texer.tex.rgb[idx_left] = texer.tex.rgb[idx_right];
+            texer.tex.rgb[idx_right] = temp;
         }
     }
 
-    for (size_t i = 0; i < tex->width * tex->height; i++) {
-        tex->rgb[i] = mirrored[i];
-    }
-
-    free(mirrored);
+    return texer;
 }
 
 tex_builder_t _flip(tex_builder_t texer) {
-    // TODO assert height is divisible by 2
-
-    /* TODO perform in-place? */
-    //color_t* flipped = (color_t*) malloc(texer.width * texer.height * sizeof(color_t));
-    color_t* flipped = (color_t*) malloc(texer.atlas_width * texer.atlas_height * sizeof(color_t)); // NOTE: overallocates
-
-    /* flip each column vertically */
-    for (size_t y = texer.y_start; y < (texer.y_start + texer.height); y++) {
-        for (size_t x = texer.x_start; x < (texer.x_start + texer.width); x++) {
-            size_t idx         = (y * texer.atlas_width) + x;
-            size_t idx_flipped = (texer.y_start + texer.height - 1 - (y - texer.y_start)) * texer.atlas_width + x;
-            flipped[idx]       = texer.tex.rgb[idx_flipped];
+    /* flip the texture upside down row by row */
+    for (size_t y = 0; y < texer.height / 2; y++) {
+        for (size_t x = 0; x < texer.width; x++) {
+            size_t idx_top = (texer.y_start + y) * texer.atlas_width + (texer.x_start + x);
+            size_t idx_bottom = (texer.y_start + texer.height - 1 - y) * texer.atlas_width + (texer.x_start + x);
+            color_t temp = texer.tex.rgb[idx_top];
+            texer.tex.rgb[idx_top] = texer.tex.rgb[idx_bottom];
+            texer.tex.rgb[idx_bottom] = temp;
         }
     }
-
-    for (size_t y = texer.y_start; y < (texer.y_start + texer.height); y++) {
-        for (size_t x = texer.x_start; x < (texer.x_start + texer.width); x++) {
-            size_t idx    = (y * texer.atlas_width) + x;
-            texer.tex.rgb[idx] = flipped[idx];
-        }
-    }
-
-    free(flipped);
 
     return texer;
 }

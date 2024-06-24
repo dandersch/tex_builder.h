@@ -43,10 +43,12 @@ __attribute__((visibility("default"))) int generate_textures(state_t* state, flo
                     color(BLUE);
                     pixel();
                     flip();
+                    mirror();
                 }
                 scope_tex_rect(28,28,4,4) {
                     color(BLUE);
                     pixel();
+                    mirror();
                 }
             }
             scope_tex_rect(32,0,32,32)  { color(BROWN);   }
