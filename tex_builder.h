@@ -64,7 +64,7 @@ typedef struct tex_builder_t { texture_t tex;                             } tex_
 tex_builder_t texture(int w, int h, color_t rgb);                     // use for creating texture atlas
 tex_builder_t tex_copy(texture_t tex);                                // deep copy a texture
 /* building api (non-allocating) */
-tex_builder_t subtexture(texture_t atlas, int w, int h, color_t rgb); // get a texture from an atlas
+tex_builder_t subtexture(texture_t* atlas,int w, int h, color_t rgba); // get a texture from an atlas
 
 /* transformation api */
 #define noise(...) _noise(&temp, __VA_ARGS__)
@@ -89,12 +89,13 @@ void   _mirror(tex_builder_t* tex);
 #ifdef TEX_BUILDER_IMPLEMENTATION
 #include <stdlib.h> // for malloc & rand()
 #include <math.h>   // for RAND_MAX, ...
+#include <assert.h> // TODO take in assert macro from user
 void _noise(tex_builder_t* texer, float intensity)  {
     texture_t* tex = &(texer->tex);
 
     srand(1);
 
-    for (size_t i = 0; i < tex->width * tex->height; i++) {
+    for (size_t i = 0; i < tex->atlas_width * tex->height; i++) {
 
         // Add noise to each color component based on intensity
         tex->rgb[i].r += intensity * ((float)rand() / (float) RAND_MAX - 0.5f);
@@ -218,12 +219,58 @@ void _smear(tex_builder_t* texer, color_t rgb) {
 
 tex_builder_t texture(int w, int h, color_t rgba) {
     tex_builder_t texer;
-    texer.tex.width       = w;
-    texer.tex.height      = h;
+    texer.tex.width        = w;
+    texer.tex.height       = h;
+    texer.tex.atlas_width  = w;
+    texer.tex.atlas_height = h;
+    texer.tex.x_start      = 0;
+    texer.tex.y_start      = 0;
+    texer.tex.owns_buffer  = 1;
     texer.tex.rgb         = malloc(w * h * sizeof(color_t));
     for (int i = 0; i < (w * h); i++)
     {
         texer.tex.rgb[i] = rgba;
+    }
+    return texer;
+}
+
+tex_builder_t subtexture(texture_t* atlas, int w, int h, color_t rgba) {
+    assert(atlas->atlas_width >= w && atlas->atlas_height >= h && "Subtexture is bigger than the atlas\n");
+
+    tex_builder_t texer;
+    texture_t* subtex = &texer.tex;
+
+    size_t start_index = (atlas->width * atlas->y_start) + atlas->x_start;
+
+    // Set the subtexture properties
+    subtex->width = w;
+    subtex->height = h;
+
+    subtex->rgb          = &(atlas->rgb[start_index]); // set buffer pointer to start of subtexture
+    subtex->atlas_width  = atlas->width;
+    subtex->atlas_height = atlas->height;
+    subtex->owns_buffer  = 0;                         // subtexture did not allocate buffer
+    subtex->x_start      = atlas->x_start;
+    subtex->y_start      = atlas->y_start;
+
+    /* push onto the atlas */
+    assert(!(atlas->x_start + subtex->width > atlas->atlas_width) && "Pushed beyond atlas width"); // TODO handle this case
+    if (atlas->x_start + subtex->width == atlas->atlas_width) {
+        atlas->x_start       = 0;
+        assert(!(atlas->y_start + subtex->height > atlas->atlas_height) && "Pushed beyond atlas height"); // TODO handle this case
+        atlas->y_start      += subtex->height;
+    } else {
+        atlas->x_start       = atlas->x_start + subtex->width;
+    }
+
+    /* color the subtexture */
+    for (size_t y = 0; y < h; y++) {
+        for (size_t x = 0; x < w; x++) {
+            size_t index = (y * atlas->atlas_width) + x;
+            if (x < atlas->atlas_width && y < atlas->atlas_height) {
+                subtex->rgb[index] = rgba;
+            }
+        }
     }
     return texer;
 }
