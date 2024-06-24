@@ -25,7 +25,6 @@
  * blend:  blend two textures together with a specified blending mode (e.g., alpha blending, additive blending)
  * resize: resize the texture to a new width and height using interpolation techniques (e.g., bilinear interpolation).
  * rotate: rotate the texture by a specified angle around a pivot point.
- * flip:   flip texture horizontally or vertically
  *
  * outline version of rect, circle
  *
@@ -82,16 +81,28 @@ tex_builder_t tex_copy(texture_t tex);                                // deep co
 tex_builder_t _subtexture(texture_t* atlas,int w, int h, color_t rgba); // get a texture from an atlas
 
 /* transformation api */
-//#define noise(...) _noise(&temp, __VA_ARGS__) // TODO old
-#define noise(...) __noise(temp, __VA_ARGS__)
-void   _noise(tex_builder_t* tex, float intensity);
-void  __noise(tex_builder_t  tex, float intensity);
-#define grunge(...) _grunge(&temp, __VA_ARGS__)
-void   _grunge(tex_builder_t* tex, float intensity); /* TODO */
-#define smear(...) _smear(&temp, ##__VA_ARGS__)
-void   _smear(tex_builder_t* tex, color_t rgb);      /* TODO */
+#define         noise(...) temp = __noise(temp, __VA_ARGS__)
+tex_builder_t __noise(tex_builder_t  tex, float intensity);
+
 #define rect(...) _rect(&temp, __VA_ARGS__)
 void   _rect(tex_builder_t* tex, unsigned int x, unsigned int y, unsigned int width, unsigned int height, color_t color);
+
+/* for debugging */
+#define pixel(...) _pixel(temp, ##__VA_ARGS__) // places a pixel at the current {x,y} start
+static void   _pixel(tex_builder_t tex)
+{
+   size_t index = (tex.y_start * tex.atlas_width) + tex.x_start;
+   tex.tex.rgb[index] = (color_t){1,1,1,1};
+}
+
+#define circle(...) _circle(&temp, __VA_ARGS__)
+void   _circle(tex_builder_t* tex, unsigned int x, unsigned int y, unsigned int radius, color_t color);
+
+/* NOTE: these allocate */
+#define        flip(...) temp = _flip(temp, ##__VA_ARGS__)
+tex_builder_t _flip(tex_builder_t texer);
+#define mirror(...) _mirror(&temp, ##__VA_ARGS__)
+void   _mirror(tex_builder_t* tex);
 
 static tex_builder_t   __rect(tex_builder_t texer, unsigned int x, unsigned int y, unsigned int width, unsigned int height)
 {
@@ -117,21 +128,6 @@ static void   _color(tex_builder_t tex, color_t color)
     }
 }
 
-/* for debugging */
-#define pixel(...) _pixel(temp, ##__VA_ARGS__)
-static void   _pixel(tex_builder_t tex)
-{
-   size_t index = (tex.y_start * tex.atlas_width) + tex.x_start;
-   tex.tex.rgb[index] = (color_t){1,1,1,1};
-}
-
-#define circle(...) _circle(&temp, __VA_ARGS__)
-void   _circle(tex_builder_t* tex, unsigned int x, unsigned int y, unsigned int radius, color_t color);
-#define flip(...) _flip(&temp, ##__VA_ARGS__)
-void   _flip(tex_builder_t* tex);
-#define mirror(...) _mirror(&temp, ##__VA_ARGS__)
-void   _mirror(tex_builder_t* tex);
-
 /* helper macros */
 #define TOKEN_PASTE(a, b) a##b
 #define CONCAT(a,b) TOKEN_PASTE(a,b)
@@ -149,8 +145,7 @@ void   _mirror(tex_builder_t* tex);
                                                       x + UNIQUE_VAR(old_x_start), \
                                                       y + UNIQUE_VAR(old_y_start), \
                                                       min(w,temp.width),           \
-                                                      min(h,temp.height)),         \
-                                        0);                                        \
+                                                      min(h,temp.height)), 0);     \
          UNIQUE_VAR(j) == 0; \
          (UNIQUE_VAR(j)+=1,                       \
           temp.x_start = UNIQUE_VAR(old_x_start), \
@@ -191,10 +186,8 @@ void _noise(tex_builder_t* texer, float intensity)  {
     }
 }
 
-void __noise(tex_builder_t texer, float intensity)  {
+tex_builder_t __noise(tex_builder_t texer, float intensity)  {
     texture_t* tex = &(texer.tex);
-
-    size_t index = (texer.y_start * texer.atlas_width) + texer.x_start;
 
     static unsigned int random = 0;
     srand(time(0) + random);
@@ -214,6 +207,8 @@ void __noise(tex_builder_t texer, float intensity)  {
             tex->rgb[idx].b = fminf(fmaxf(tex->rgb[idx].b, 0.0f), 1.0f);
         }
     }
+
+    return texer;
 }
 
 void _rect(tex_builder_t* texer, unsigned int x, unsigned int y, unsigned int width, unsigned int height, color_t color)  {
@@ -282,7 +277,7 @@ void _mirror(tex_builder_t* texer) {
     texture_t* tex = &(texer->tex);
     color_t* mirrored = (color_t*) malloc(tex->width * tex->height * sizeof(color_t));
 
-    /* flip each row horizontally */
+    /* mirror each row horizontally */
     for (size_t y = 0; y < tex->height; y++) {
         for (size_t x = 0; x < tex->width; x++) {
             mirrored[y * tex->width + x] = tex->rgb[y * tex->width + (tex->width - 1 - x)];
@@ -296,32 +291,32 @@ void _mirror(tex_builder_t* texer) {
     free(mirrored);
 }
 
-void _flip(tex_builder_t* texer) {
-    texture_t* tex = &(texer->tex);
-    color_t* flipped = (color_t*)malloc(tex->width * tex->height * sizeof(color_t));
+tex_builder_t _flip(tex_builder_t texer) {
+    // TODO assert height is divisible by 2
+
+    /* TODO perform in-place? */
+    //color_t* flipped = (color_t*) malloc(texer.width * texer.height * sizeof(color_t));
+    color_t* flipped = (color_t*) malloc(texer.atlas_width * texer.atlas_height * sizeof(color_t)); // NOTE: overallocates
 
     /* flip each column vertically */
-    for (size_t y = 0; y < tex->height; y++) {
-        for (size_t x = 0; x < tex->width; x++) {
-            flipped[y * tex->width + x] = tex->rgb[(tex->height - 1 - y) * tex->width + x];
+    for (size_t y = texer.y_start; y < (texer.y_start + texer.height); y++) {
+        for (size_t x = texer.x_start; x < (texer.x_start + texer.width); x++) {
+            size_t idx         = (y * texer.atlas_width) + x;
+            size_t idx_flipped = (texer.y_start + texer.height - 1 - (y - texer.y_start)) * texer.atlas_width + x;
+            flipped[idx]       = texer.tex.rgb[idx_flipped];
         }
     }
 
-    for (size_t i = 0; i < tex->width * tex->height; i++) {
-        tex->rgb[i] = flipped[i];
+    for (size_t y = texer.y_start; y < (texer.y_start + texer.height); y++) {
+        for (size_t x = texer.x_start; x < (texer.x_start + texer.width); x++) {
+            size_t idx    = (y * texer.atlas_width) + x;
+            texer.tex.rgb[idx] = flipped[idx];
+        }
     }
 
     free(flipped);
-}
 
-void _grunge(tex_builder_t* texer, float intensity) {
-    texture_t* tex = &(texer->tex);
-    tex->rgb[0].b += intensity;
-}
-
-void _smear(tex_builder_t* texer, color_t rgb) {
-    texture_t* tex = &(texer->tex);
-    tex->rgb[0] = rgb;
+    return texer;
 }
 
 tex_builder_t texture(int w, int h, color_t rgba) {

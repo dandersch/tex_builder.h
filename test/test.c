@@ -33,13 +33,18 @@ __attribute__((visibility("default"))) int generate_textures(state_t* state, flo
 
         #define lerp(t, a, b) (a + t * (b - a))
 
-        /* new api */
+        /* api usage */
         texture_t atlas;
         scope_tex_build(atlas, texture(96,96, NONE)) {
             scope_tex_rect(0,0,32,32) {
                 color(RED);
                 noise(0.3);
-                scope_tex_rect(10,10,10,10) {
+                scope_tex_rect(10,20,10,10) {
+                    color(BLUE);
+                    pixel();
+                    flip();
+                }
+                scope_tex_rect(28,28,4,4) {
                     color(BLUE);
                     pixel();
                 }
