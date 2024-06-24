@@ -4,72 +4,76 @@
 
    texture(0x468f).create(); // Sky
    texture(0x340f).grunge().create(); // Grass
-   texture(0x340f).grunge().noise(0x108a, 1.5).create(); // Grass dark
    texture(0x236f).noise(0x1005, 4.5).noise(Ox100a, 2.5).create(); // Water
 
    inspiration:
    https://x.com/phoboslab/status/1432363394418491394/photo/1
 */
 
-/* USAGE
-   texture_t tex = TEXTURE_CREATE(texture(color), noise(2), ....);
-*/
-
 /*
   Limitations:
-  - color (first argument) cannot be specified as an initializer containing commas, e.g. TEXTURE_CREATE(texture((color_t){0.2,0.3,0.5}), ...)
+  - color (first argument) cannot be specified as an initializer containing commas, e.g. tex_build(texture((color_t){0.2,0.3,0.5}), ...)
   - requires GNU C-extension of statement expressions
   - ...
 */
 
 /* Possible extensions:
- * tex_copy(tex): deep copy a texture
+ *
  * stencil/blit(t,x,y): draws tex t to the texture at (x,y)
  *
- * circle: draw a filled circle at position with radius and color
  * line:   draw a line segment between two points with a color
  * blend:  blend two textures together with a specified blending mode (e.g., alpha blending, additive blending)
  * resize: resize the texture to a new width and height using interpolation techniques (e.g., bilinear interpolation).
  * rotate: rotate the texture by a specified angle around a pivot point.
  * flip:   flip texture horizontally or vertically
  *
- * - generate normal maps along texture for operations that add depth (e.g. insets)
+ * outline version of rect, circle
+ *
+ * generate normal maps along texture for operations that add depth (e.g. insets)
+ *
+ * cpp wrapper (avoids need of statement expressions)
  */
 
 #include <stddef.h>
 
 // NOTE RGBA vs BGRA layout could be set with a macro (?)
-typedef struct color_t { float r; float g; float b; float a; } color_t;
-typedef struct texture_t { size_t width; size_t height; color_t* rgb; } texture_t;
+typedef struct color_t       { float r; float g; float b; float a;        } color_t;
+typedef struct texture_t     { size_t width; size_t height; color_t* rgb; } texture_t;
+typedef struct tex_builder_t { texture_t tex;                             } tex_builder_t;
 
-/* api */
-texture_t texture(int w, int h, color_t rgb);
+/*
+ * api
+ */
+/* building api (these functions allocate) */
+tex_builder_t texture(int w, int h, color_t rgb);
+tex_builder_t tex_copy(texture_t tex);
+
+/* transformation api */
 #define noise(...) _noise(&temp, __VA_ARGS__)
-void _noise(texture_t* tex, float intensity);
+void   _noise(tex_builder_t* tex, float intensity);
 #define grunge(...) _grunge(&temp, __VA_ARGS__)
-void _grunge(texture_t* tex, float intensity);
+void   _grunge(tex_builder_t* tex, float intensity); /* TODO */
 #define smear(...) _smear(&temp, ##__VA_ARGS__)
-void _smear(texture_t* tex, color_t rgb);
-
+void   _smear(tex_builder_t* tex, color_t rgb);      /* TODO */
 #define rect(...) _rect(&temp, __VA_ARGS__)
-void _rect(texture_t* tex, unsigned int x, unsigned int y, unsigned int width, unsigned int height, color_t color);
-
+void   _rect(tex_builder_t* tex, unsigned int x, unsigned int y, unsigned int width, unsigned int height, color_t color);
 #define circle(...) _circle(&temp, __VA_ARGS__)
-void _circle(texture_t* tex, unsigned int x, unsigned int y, unsigned int radius, color_t color);
-
+void   _circle(tex_builder_t* tex, unsigned int x, unsigned int y, unsigned int radius, color_t color);
 #define flip(...) _flip(&temp, ##__VA_ARGS__)
-void _flip(texture_t* tex);
-
+void   _flip(tex_builder_t* tex);
 #define mirror(...) _mirror(&temp, ##__VA_ARGS__)
-void _mirror(texture_t* tex);
+void   _mirror(tex_builder_t* tex);
 
-#define tex_build(tex, ...) ({texture_t temp = tex; __VA_ARGS__; _create(temp); })
+/* usage: tex_build(build(), transform(), transform(), ...) */
+#define tex_build(tex, ...) ({tex_builder_t temp = tex; __VA_ARGS__; _create(temp); })
 
 /* internal */
 #ifdef TEX_BUILDER_IMPLEMENTATION
 #include <stdlib.h> // for malloc & rand()
 #include <math.h>   // for RAND_MAX, ...
-void _noise(texture_t* tex, float intensity)  {
+void _noise(tex_builder_t* texer, float intensity)  {
+    texture_t* tex = &(texer->tex);
+
     srand(1);
 
     for (size_t i = 0; i < tex->width * tex->height; i++) {
@@ -85,7 +89,9 @@ void _noise(texture_t* tex, float intensity)  {
     }
 }
 
-void _rect(texture_t* tex, unsigned int x, unsigned int y, unsigned int width, unsigned int height, color_t color)  {
+void _rect(tex_builder_t* texer, unsigned int x, unsigned int y, unsigned int width, unsigned int height, color_t color)  {
+    texture_t* tex = &(texer->tex);
+
     /* check if rectangle fits into the texture */
     if (x + width > tex->width || y + height > tex->height) { return; }
 
@@ -98,7 +104,9 @@ void _rect(texture_t* tex, unsigned int x, unsigned int y, unsigned int width, u
     }
 }
 
-void _circle(texture_t* tex, unsigned int x, unsigned int y, unsigned int radius, color_t color) {
+void _circle(tex_builder_t* texer, unsigned int x, unsigned int y, unsigned int radius, color_t color) {
+    texture_t* tex = &(texer->tex);
+
     // filled circle using midpoint circle algorithm
     int cx = radius - 1;
     int cy = 0;
@@ -143,7 +151,8 @@ void _circle(texture_t* tex, unsigned int x, unsigned int y, unsigned int radius
     }
 }
 
-void _mirror(texture_t* tex) {
+void _mirror(tex_builder_t* texer) {
+    texture_t* tex = &(texer->tex);
     color_t* mirrored = (color_t*) malloc(tex->width * tex->height * sizeof(color_t));
 
     /* flip each row horizontally */
@@ -160,7 +169,8 @@ void _mirror(texture_t* tex) {
     free(mirrored);
 }
 
-void _flip(texture_t* tex) {
+void _flip(tex_builder_t* texer) {
+    texture_t* tex = &(texer->tex);
     color_t* flipped = (color_t*)malloc(tex->width * tex->height * sizeof(color_t));
 
     /* flip each column vertically */
@@ -177,26 +187,39 @@ void _flip(texture_t* tex) {
     free(flipped);
 }
 
-void _grunge(texture_t* tex, float intensity) {
+void _grunge(tex_builder_t* texer, float intensity) {
+    texture_t* tex = &(texer->tex);
     tex->rgb[0].b += intensity;
 }
 
-void _smear(texture_t* tex, color_t rgb) {
+void _smear(tex_builder_t* texer, color_t rgb) {
+    texture_t* tex = &(texer->tex);
     tex->rgb[0] = rgb;
 }
 
-texture_t texture(int w, int h, color_t rgba)
-{
-    texture_t tex;
-    tex.width       = w;
-    tex.height      = h;
-    tex.rgb         = malloc(w * h * sizeof(color_t));
+tex_builder_t texture(int w, int h, color_t rgba) {
+    tex_builder_t texer;
+    texer.tex.width       = w;
+    texer.tex.height      = h;
+    texer.tex.rgb         = malloc(w * h * sizeof(color_t));
     for (int i = 0; i < (w * h); i++)
     {
-        tex.rgb[i] = rgba;
+        texer.tex.rgb[i] = rgba;
     }
-    return tex;
+    return texer;
 }
 
-texture_t _create(texture_t tex) { return tex; }
+tex_builder_t tex_copy(texture_t tex) {
+    tex_builder_t texer;
+    texer.tex.width       = tex.width;
+    texer.tex.height      = tex.height;
+    texer.tex.rgb         = malloc(tex.width * tex.height * sizeof(color_t));
+    for (int i = 0; i < (tex.width * tex.height); i++)
+    {
+        texer.tex.rgb[i] = tex.rgb[i];
+    }
+    return texer;
+}
+
+texture_t _create(tex_builder_t texer) { return texer.tex; }
 #endif

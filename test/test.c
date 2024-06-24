@@ -15,11 +15,15 @@ __attribute__((visibility("default"))) int generate_textures(state_t* state)
     color_t VIOLET = {1,0,1,1};
 
     /* NOTE: for opengl, end with flip() operation to match origin at top-left */
-    texture_t tex  = tex_build(texture(32,32,GREEN), noise(1.2), circle(16,26,8,RED), rect(5,18,4,4, RED), rect(0,14,32,4,RED), flip() );
+    texture_t tex  = tex_build(texture(32,32,GREEN),
+                               noise(1.2), circle(16,26,8,RED), rect(5,18,4,4, RED),
+                               rect(0,14,32,4,RED),
+                               flip()
+                              );
+
+    texture_t tex2 = tex_build(tex_copy(tex), noise(100));
 
     state->tex = tex;
-
-    texture_t tex2 = tex_build(tex, grunge(2));
 
     return 1;
 }
