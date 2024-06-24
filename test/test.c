@@ -6,7 +6,7 @@
 #include <stdio.h>
 
 /* usage */
-__attribute__((visibility("default"))) int generate_textures(state_t* state)
+__attribute__((visibility("default"))) int generate_textures(state_t* state, float dt)
 {
     color_t RED    = {1,0,0,1};
     color_t GREEN  = {0,1,0,1};
@@ -21,9 +21,9 @@ __attribute__((visibility("default"))) int generate_textures(state_t* state)
                                flip()
                               );
 
-    texture_t tex2 = tex_build(tex_copy(tex), noise(100));
+    //texture_t tex2 = tex_build(tex_copy(tex), noise(100));
 
-    state->tex = tex;
+    state->tex[0] = tex;
 
     return 1;
 }

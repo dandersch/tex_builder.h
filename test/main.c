@@ -10,7 +10,7 @@
 /* HOT RELOAD */
 #include <sys/stat.h>
 #define DLL_FILENAME "./code.dll"
-static int    (*generate_textures)(state_t*);
+static int    (*generate_textures)(state_t*, float);
 static time_t dll_last_mod;
 static void*  dll_handle;
 static state_t* state = NULL;
@@ -123,9 +123,8 @@ GLuint compile_shader(GLenum type, const char* source) {
 int upload_textures(state_t* state)
 {
     //glTexImage2D(GL_TEXTURE_2D, 0, tex_mode, state->tex.width, state->tex.height, 0, tex_mode, GL_UNSIGNED_BYTE, state->tex.rgb);
-    glTexImage2D(GL_TEXTURE_2D, 0, tex_mode, state->tex.width, state->tex.height, 0, GL_RGBA, GL_FLOAT, state->tex.rgb);
+    glTexImage2D(GL_TEXTURE_2D, 0, tex_mode, state->tex[0].width, state->tex[0].height, 0, GL_RGBA, GL_FLOAT, state->tex[0].rgb);
     //glTexImage2D(GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, const void *pixels);
-
     return 1;
 }
 
@@ -136,11 +135,6 @@ int platform_load_code()
         SDL_UnloadObject(dll_handle);
         generate_textures = NULL;
         dll_handle        = NULL;
-
-        /* TODO free allocated textures */
-        {
-            //free(state->tex.rgb);
-        }
     }
 
     dll_handle = SDL_LoadObject(DLL_FILENAME);
@@ -150,7 +144,7 @@ int platform_load_code()
         dll_handle = SDL_LoadObject(DLL_FILENAME);
     }
 
-    generate_textures = (int (*)(state_t*)) SDL_LoadFunction(dll_handle, "generate_textures");
+    generate_textures = (int (*)(state_t*,float)) SDL_LoadFunction(dll_handle, "generate_textures");
     if (!generate_textures) { printf("Error finding function\n"); return 0; }
 
     return 1;
@@ -180,7 +174,7 @@ int main(int argc, char* args[])
     dll_last_mod = attr.st_mtime;
 
     state = malloc(sizeof(state_t));
-    generate_textures(state);
+    generate_textures(state,0);
 
     /* init glew, vao, vbo, texture & upload texture */
     {
@@ -297,8 +291,20 @@ int main(int argc, char* args[])
     SDL_Event event;
     int mouse_x, mouse_y;
     float pos_x = 0, pos_y = 0;
+
+    SDL_GL_SetSwapInterval(1); // disable vsync
+
+    unsigned int current_time = 0;
+    unsigned int last_time    = SDL_GetTicks();
+    float dt                  = 0.0f;
     while (running)
     {
+        current_time = SDL_GetTicks();
+        dt = (current_time - last_time) / 1000.0f; // milliseconds to seconds
+        last_time = current_time;
+
+        printf("%f\n", dt);
+
         /* check if dll has changed on disk */
         if ((stat(DLL_FILENAME, &attr) == 0) && (dll_last_mod != attr.st_mtime))
         {
@@ -306,10 +312,16 @@ int main(int argc, char* args[])
             platform_load_code();
             dll_last_mod = attr.st_mtime;
 
-            /* generate textures again */
+        }
+
+        /* generate textures again */
+        {
+            generate_textures(state,dt);
+            upload_textures(state);
+            /* free allocated textures */
+            for (int i = 0; i < TEXTURE_COUNT; i ++)
             {
-                generate_textures(state);
-                upload_textures(state);
+                free(state->tex[i].rgb);
             }
         }
 

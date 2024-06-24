@@ -77,6 +77,7 @@ void _noise(tex_builder_t* texer, float intensity)  {
     srand(1);
 
     for (size_t i = 0; i < tex->width * tex->height; i++) {
+
         // Add noise to each color component based on intensity
         tex->rgb[i].r += intensity * ((float)rand() / (float) RAND_MAX - 0.5f);
         tex->rgb[i].g += intensity * ((float)rand() / (float) RAND_MAX - 0.5f);
