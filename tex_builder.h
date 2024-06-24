@@ -38,15 +38,33 @@
 
 // NOTE RGBA vs BGRA layout could be set with a macro (?)
 typedef struct color_t       { float r; float g; float b; float a;        } color_t;
-typedef struct texture_t     { size_t width; size_t height; color_t* rgb; } texture_t;
+typedef struct texture_t
+{
+    size_t width;
+    size_t height;
+    color_t* rgb;
+
+    /* unused */
+    size_t atlas_width;
+    size_t atlas_height;
+    int owns_buffer;
+
+    /* shows where a subtexture starts OR where the texture atlas is free */
+    size_t x_start; // show subtextures
+    size_t y_start; // for subtextures
+} texture_t;
+
+/* wrapper for type safety */
 typedef struct tex_builder_t { texture_t tex;                             } tex_builder_t;
 
 /*
  * api
  */
-/* building api (these functions allocate) */
-tex_builder_t texture(int w, int h, color_t rgb);
-tex_builder_t tex_copy(texture_t tex);
+/* building api (allocating) */
+tex_builder_t texture(int w, int h, color_t rgb);                     // use for creating texture atlas
+tex_builder_t tex_copy(texture_t tex);                                // deep copy a texture
+/* building api (non-allocating) */
+tex_builder_t subtexture(texture_t atlas, int w, int h, color_t rgb); // get a texture from an atlas
 
 /* transformation api */
 #define noise(...) _noise(&temp, __VA_ARGS__)

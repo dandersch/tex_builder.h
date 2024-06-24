@@ -28,6 +28,16 @@ __attribute__((visibility("default"))) int generate_textures(state_t* state, flo
 
     //texture_t tex2 = tex_build(tex_copy(tex), noise(100));
 
+    /* texture atlas usage code */
+    {
+        //color_t NONE    = {0,0,0,0}
+        //texture_t atlas = tex_build(texture(96,96, NONE));
+        //texture_t tex_1 = tex_build(subtexture(atlas,32,32,RED));
+        //texture_t tex_2 = tex_build(subtexture(atlas,32,32,BLUE));
+
+        //state->tex[0] = atlas;
+    }
+
     state->tex[0] = tex;
 
     return 1;
