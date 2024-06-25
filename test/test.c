@@ -89,25 +89,34 @@ __attribute__((visibility("default"))) int generate_textures(state_t* state, flo
             scope_rectcut_right(2) { rect(0, lerp(zero_to_one,0,25),2,8,WHITE); }
         }
 
-        /* using for loops for generating */
-        for (int i = 0; i < 3; i++) {
-            scope_tex_rect(32 * i,32,32,32) {
-                switch (i) {
-                    case 0: { color(YELLOW);  } break;
-                    case 1: { color(MAGENTA); } break;
-                    case 2: { color(CYAN);    } break;
-                }
+        scope_tex_rect(0,32,32,32)  {
+            color(BLUE);
+        }
+
+        /* testing clamping */
+        scope_tex_rect(32,32,32,32) {
+            color(BLACK);
+            scope_tex_rect(0, (int) lerp(zero_to_one, 0, 33),32,32) {
+                color(ORANGE);
+                scope_rectcut_left(10)  { color(YELLOW); }
+                scope_rectcut_right(10) { color(YELLOW); }
+                scope_rectcut_top(5)    { color(ORANGE); }
             }
         }
 
-        scope_tex_rect(0,64,32,32)  {
-            color(BLUE);
-        }
-        scope_tex_rect(32,64,32,32) {
-            color(ORANGE);
-        }
-        scope_tex_rect(64,64,32,32) {
+        scope_tex_rect(64,32,32,32) {
             color(GRAY);
+        }
+
+        /* using for loops for generating */
+        for (int i = 0; i < 3; i++) {
+            scope_tex_rect(32 * i,64,32,32) {
+                switch (i) {
+                    case 0: { color(YELLOW);  } break;
+                    //case 1: { color(MAGENTA); } break;
+                    case 2: { color(CYAN);    } break;
+                }
+            }
         }
         flip(); /* flip to match opengl's origin at top-left */
     }

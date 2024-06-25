@@ -29,19 +29,18 @@
  *                             Maybe make it so that a rect_t can be passed in that gets filled with x,y,h,w.
  *
  * general:
- *   make possible to regenerate without reallocating
  *   outline version of rect, circle
- *   generate normal maps along texture for operations that add depth (e.g. insets)
- *   make work in glsl shader code
- *   check if it works with C++ and MSVC
  *
+ *   all drawing operations should have versions that take float (i.e. percentages) instead of pixels
  *   all drawing operations should take in alpha values into account
  *
  *   if we have consider alpha values, we can have masks inside tex_builder_t to implement e.g. scope_tex_circle() {}
  *
- *   all drawing operations should have versions that take float (i.e. percentages) instead of pixels
- *
  *   push/pop pragma warning about shadowing variables when nesting scope_tex_build's
+ *
+ *   make work in glsl shader code
+ *   check if it works with C++ and MSVC
+ *   generate normal maps along texture for operations that add depth (e.g. insets)
  */
 
 #include <stddef.h>
@@ -120,28 +119,32 @@ tex_builder_t _voronoi(tex_builder_t tex, float intensity, color_t color);
 #define TOKEN_PASTE(a, b) a##b
 #define CONCAT(a,b) TOKEN_PASTE(a,b)
 #define UNIQUE_VAR(name) CONCAT(name, __LINE__)
-#define min(a, b) ((a < b) ? a : b)
+#define min(a, b) (((a) < (b)) ? (a) : (b))
+#define max(a, b) (((a) > (b)) ? (a) : (b))
+#define CLAMP(x, min, max) ((x) < (min) ? (min) : ((x) > (max) ? (max) : (x)))
 
 #define _scope_tex_build(tex, builder) \
     for (tex_builder_t temp = builder; temp.i == 0; (temp.i+=1, atlas = _create(temp)))
 // TODO do x,y,w,h
-// TODO cut off rectangles when they exceed bounds
 #define _scope_tex_rect(x,y,h,w) \
     for (int UNIQUE_VAR(old_x_start) = temp.x_start, \
              UNIQUE_VAR(old_y_start) = temp.y_start, \
              UNIQUE_VAR(old_width)   = temp.width,   \
              UNIQUE_VAR(old_height)  = temp.height,  \
              UNIQUE_VAR(j)           = (temp = __rect(temp,                        \
-                                                      x + UNIQUE_VAR(old_x_start), \
-                                                      y + UNIQUE_VAR(old_y_start), \
-                                                      min(w,temp.width),           \
-                                                      min(h,temp.height)), 0);     \
+                                                      CLAMP(x + UNIQUE_VAR(old_x_start), UNIQUE_VAR(old_x_start), UNIQUE_VAR(old_x_start) + temp.width), \
+                                                      min(y + UNIQUE_VAR(old_y_start), UNIQUE_VAR(old_y_start) + temp.height), \
+                                                      (((x + UNIQUE_VAR(old_x_start) + w)  > (UNIQUE_VAR(old_x_start) + temp.width))  ? (w - ((x + UNIQUE_VAR(old_x_start) + w)  - (UNIQUE_VAR(old_x_start) + temp.width))) \
+                                                                                                                                      : (x + UNIQUE_VAR(old_x_start) < UNIQUE_VAR(old_x_start)) ? ((x + UNIQUE_VAR(old_x_start) + w) - UNIQUE_VAR(old_x_start)) : w), \
+                                                      (((y + UNIQUE_VAR(old_y_start) + h)  > (UNIQUE_VAR(old_y_start) + temp.height)) ? (h - ((y + UNIQUE_VAR(old_y_start) + h)  - (UNIQUE_VAR(old_y_start) + temp.height))) \
+                                                                                                                                      : (y + UNIQUE_VAR(old_y_start) < UNIQUE_VAR(old_y_start)) ? ((y + UNIQUE_VAR(old_y_start) + h) - UNIQUE_VAR(old_y_start)) : h) \
+                                                      ), 0);                       \
          UNIQUE_VAR(j) == 0; \
          (UNIQUE_VAR(j)+=1,                       \
           temp.x_start = UNIQUE_VAR(old_x_start), \
           temp.y_start = UNIQUE_VAR(old_y_start), \
           temp.width   = UNIQUE_VAR(old_width),   \
-          temp.height = UNIQUE_VAR(old_height)))
+          temp.height  = UNIQUE_VAR(old_height)))
 
 #define _scope_rectcut_top(cut)    _scope_tex_rect(0, 0, cut, temp.width)
 #define _scope_rectcut_left(cut)   _scope_tex_rect(0, 0, temp.height, cut)
