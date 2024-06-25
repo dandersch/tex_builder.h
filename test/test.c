@@ -58,20 +58,20 @@ __attribute__((visibility("default"))) int generate_textures(state_t* state, flo
             }
             scope_tex_rect(12,16,16,8) { color(BLACK); }
             scope_tex_rect(8,20,16,16) { color(BLACK); }
-            scope_tex_rect(12,28,16,8) { color(GREEN); noise(1.0); }
+            scope_tex_rect(12,(int) lerp(zero_to_one, 28, 33),16,8)  { color(GREEN); noise(1.0); } // NOTE: not properly cut off
         }
 
         /* sliding door */
         scope_tex_rect(32,0,32,32)  {
             color(BLACK);
-            scope_rectcut_left(lerp(zero_to_one, 16, 0)) {
+            scope_rectcut_left((int) lerp(zero_to_one, 18, 0)) {
                 color(GRAY);
                 noise(0.3);
                 scope_rectcut_right(3) {
                   color((color_t){0.2,0.3,0.5,1});
                 }
             }
-            scope_rectcut_right(lerp(zero_to_one, 15, 0)) {
+            scope_rectcut_right((int) lerp(zero_to_one, 18, 0)) {
                 color(GRAY);
                 noise(0.3);
                 scope_rectcut_left(3) {
@@ -82,22 +82,24 @@ __attribute__((visibility("default"))) int generate_textures(state_t* state, flo
 
         /* pong animation */
         scope_tex_rect(64,0,32,32)  {
-            color(BLACK);
+            color(GRAY);
+            noise(0.1);
             rect(lerp(zero_to_one,2,28), lerp(zero_to_one,3,28),3,3,WHITE);
-
-            scope_rectcut_left(2) { rect(0, lerp(zero_to_one,0,25),2,8,WHITE); }
+            scope_rectcut_left(2)  { rect(0, lerp(zero_to_one,0,25),2,8,WHITE); }
             scope_rectcut_right(2) { rect(0, lerp(zero_to_one,0,25),2,8,WHITE); }
         }
 
-        scope_tex_rect(32,32,32,32) {
-            color(YELLOW);
+        /* using for loops for generating */
+        for (int i = 0; i < 3; i++) {
+            scope_tex_rect(32 * i,32,32,32) {
+                switch (i) {
+                    case 0: { color(YELLOW);  } break;
+                    case 1: { color(MAGENTA); } break;
+                    case 2: { color(CYAN);    } break;
+                }
+            }
         }
-        scope_tex_rect(0,32,32,32)  {
-            color(MAGENTA);
-        }
-        scope_tex_rect(64,32,32,32) {
-            color(GRAY);
-        }
+
         scope_tex_rect(0,64,32,32)  {
             color(BLUE);
         }
@@ -105,7 +107,7 @@ __attribute__((visibility("default"))) int generate_textures(state_t* state, flo
             color(ORANGE);
         }
         scope_tex_rect(64,64,32,32) {
-            color(CYAN);
+            color(GRAY);
         }
         flip(); /* flip to match opengl's origin at top-left */
     }

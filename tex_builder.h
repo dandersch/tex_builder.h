@@ -17,10 +17,10 @@
  *
  * drawing operations:
  *   line:    draw a line segment between two points with a color
- *   resize:  resize the texture to a new width and height using interpolation techniques (e.g., bilinear interpolation).
+ *   voronoi: draw a voronoi pattern with an outline color
  *   rotate:  rotate the texture by a specified angle around a pivot point.
  *   text:    draw string with font at position with size or fit the rect
- *   voronoi: draw a voronoi pattern with an outline color
+ *   resize:  resize the texture to a new width and height using interpolation (e.g., bilinear interpolation).
  *
  * scopes:
  *   scope_centered(): draw everything at the center
@@ -34,6 +34,12 @@
  *   generate normal maps along texture for operations that add depth (e.g. insets)
  *   make work in glsl shader code
  *   check if it works with C++ and MSVC
+ *
+ *   all drawing operations should take in alpha values into account
+ *
+ *   if we have consider alpha values, we can have masks inside tex_builder_t to implement e.g. scope_tex_circle() {}
+ *
+ *   all drawing operations should have versions that take float (i.e. percentages) instead of pixels
  *
  *   push/pop pragma warning about shadowing variables when nesting scope_tex_build's
  */
@@ -81,16 +87,17 @@ tex_builder_t tex_copy(texture_t tex); // TODO unused
 tex_builder_t _color(tex_builder_t tex, color_t color);
 
 #define        noise(...) temp = _noise(temp, __VA_ARGS__)
-tex_builder_t _noise(tex_builder_t  tex, float intensity);
+tex_builder_t _noise(tex_builder_t  tex, float intensity); /* TODO should take a color value */
 
 #define        flip(...)    temp = _flip(temp, ##__VA_ARGS__)
 tex_builder_t _flip(tex_builder_t texer);
 #define        mirror(...)  temp = _mirror(temp, ##__VA_ARGS__)
 tex_builder_t _mirror(tex_builder_t tex);
 
-/* TODO reimplement these */
+/* NOTE: do we need this one since we can just do scope_tex_rect(...) { color(COLOR); } */
 #define        rect(...) temp = _rect(temp, __VA_ARGS__)
 tex_builder_t _rect(tex_builder_t tex, unsigned int x, unsigned int y, unsigned int width, unsigned int height, color_t color);
+/* TODO reimplement */
 #define circle(...) _circle(&temp, __VA_ARGS__)
 void   _circle(tex_builder_t* tex, unsigned int x, unsigned int y, unsigned int radius, color_t color);
 
@@ -118,6 +125,7 @@ tex_builder_t _voronoi(tex_builder_t tex, float intensity, color_t color);
 #define _scope_tex_build(tex, builder) \
     for (tex_builder_t temp = builder; temp.i == 0; (temp.i+=1, atlas = _create(temp)))
 // TODO do x,y,w,h
+// TODO cut off rectangles when they exceed bounds
 #define _scope_tex_rect(x,y,h,w) \
     for (int UNIQUE_VAR(old_x_start) = temp.x_start, \
              UNIQUE_VAR(old_y_start) = temp.y_start, \
