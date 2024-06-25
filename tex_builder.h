@@ -29,7 +29,9 @@
  *                             Maybe make it so that a rect_t can be passed in that gets filled with x,y,h,w.
  *
  * general:
- *   outline version of rect, circle
+ *   outline version of rect, circle.
+ *   NOTE: outline could be implemented in terms of a scope_rect if we had masks
+ *   scope_rect(0+thickness, 0+thickness, w-thickness, h-thickness) { color(COLOR); }
  *
  *   all drawing operations should have versions that take float (i.e. percentages) instead of pixels
  *   all drawing operations should take in alpha values into account
@@ -42,6 +44,15 @@
  *   check if it works with C++ and MSVC
  *   generate normal maps along texture for operations that add depth (e.g. insets)
  */
+
+
+/* GLSL restrictions:
+ * - no pointers
+ * - no function forward declarations
+ * - no size_t
+ * - no 'unsigned int', only uint
+ * - no '(color_t){1,1,1,1}' initialization, only 'color_t(1,1,1,1)'
+*/
 
 #include <stddef.h>
 
@@ -68,6 +79,7 @@ typedef struct tex_builder_t {
 /*
  * api
  */
+// NOTE(GLSL): no forward declarations of functions in glsl
 /* building api (allocating) */
 tex_builder_t texture(int w, int h);
 tex_builder_t tex_copy(texture_t tex); // TODO unused
