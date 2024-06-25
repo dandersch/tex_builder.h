@@ -80,9 +80,15 @@ __attribute__((visibility("default"))) int generate_textures(state_t* state, flo
             }
         }
 
+        /* pong animation */
         scope_tex_rect(64,0,32,32)  {
-            color(GREEN);
+            color(BLACK);
+            rect(lerp(zero_to_one,2,28), lerp(zero_to_one,3,28),3,3,WHITE);
+
+            scope_rectcut_left(2) { rect(0, lerp(zero_to_one,0,25),2,8,WHITE); }
+            scope_rectcut_right(2) { rect(0, lerp(zero_to_one,0,25),2,8,WHITE); }
         }
+
         scope_tex_rect(32,32,32,32) {
             color(YELLOW);
         }

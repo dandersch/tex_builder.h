@@ -6,7 +6,7 @@
    https://x.com/phoboslab/status/1432363394418491394/photo/1
 
    Limitations:
-   - ...
+   - scope_... macros cannot be on the same line
 */
 
 /* Possible extensions:
@@ -89,8 +89,8 @@ tex_builder_t _flip(tex_builder_t texer);
 tex_builder_t _mirror(tex_builder_t tex);
 
 /* TODO reimplement these */
-#define rect(...) _rect(&temp, __VA_ARGS__)
-void   _rect(tex_builder_t* tex, unsigned int x, unsigned int y, unsigned int width, unsigned int height, color_t color);
+#define        rect(...) temp = _rect(temp, __VA_ARGS__)
+tex_builder_t _rect(tex_builder_t tex, unsigned int x, unsigned int y, unsigned int width, unsigned int height, color_t color);
 #define circle(...) _circle(&temp, __VA_ARGS__)
 void   _circle(tex_builder_t* tex, unsigned int x, unsigned int y, unsigned int radius, color_t color);
 
@@ -261,20 +261,24 @@ texture_t _create(tex_builder_t texer) {
     return texer.tex;
 }
 
-void _rect(tex_builder_t* texer, unsigned int x, unsigned int y, unsigned int width, unsigned int height, color_t color)  {
-    texture_t* tex = &(texer->tex);
+tex_builder_t _rect(tex_builder_t texer, unsigned int x, unsigned int y, unsigned int width, unsigned int height, color_t color)  {
+    /* TODO restrict rectangle to the bounds of the texture */
+    if (x + width  > texer.x_start + texer.width)  { width  = texer.width;  }
+    if (y + height > texer.y_start + texer.height) { height = texer.height; }
+    if (x >= (texer.x_start + texer.width))  { x = texer.x_start + texer.width;  width  = 0; }
+    if (y >= (texer.y_start + texer.height)) { y = texer.y_start + texer.height; height = 0; }
 
-    /* check if rectangle fits into the texture */
-    if (x + width > tex->width || y + height > tex->height) { return; }
-
-    /* fill rectangle region */
-    for (unsigned int i = y; i < y + height; i++) {
-        for (unsigned int j = x; j < x + width; j++) {
-            size_t index = i * tex->width + j;
-            tex->rgb[index] = color;
+    /* color the subtexture */
+    for (size_t y_idx = (texer.y_start + y); y_idx < (texer.y_start + y + height); y_idx++) {
+        for (size_t x_idx = (texer.x_start + x); x_idx < (texer.x_start + x + width); x_idx++) {
+            size_t index = (y_idx * texer.atlas_width) + x_idx;
+            texer.tex.rgb[index] = color;
         }
     }
+
+    return texer;
 }
+
 void _circle(tex_builder_t* texer, unsigned int x, unsigned int y, unsigned int radius, color_t color) {
     texture_t* tex = &(texer->tex);
 
