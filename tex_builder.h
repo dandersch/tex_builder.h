@@ -16,10 +16,11 @@
  *   blend:  blend two textures together with a specified blending mode (e.g., alpha blending, additive blending)
  *
  * drawing operations:
- *   line:   draw a line segment between two points with a color
- *   resize: resize the texture to a new width and height using interpolation techniques (e.g., bilinear interpolation).
- *   rotate: rotate the texture by a specified angle around a pivot point.
- *   text:   draw string with font at position with size or fit the rect
+ *   line:    draw a line segment between two points with a color
+ *   resize:  resize the texture to a new width and height using interpolation techniques (e.g., bilinear interpolation).
+ *   rotate:  rotate the texture by a specified angle around a pivot point.
+ *   text:    draw string with font at position with size or fit the rect
+ *   voronoi: draw a voronoi pattern with an outline color
  *
  * scopes:
  *   scope_centered(): draw everything at the center
@@ -104,6 +105,9 @@ static tex_builder_t _pixel(tex_builder_t tex) {
 /* called by internally by macros */
 tex_builder_t   __rect(tex_builder_t texer, unsigned int x, unsigned int y, unsigned int width, unsigned int height);
 
+/* TODO */
+#define voronoi(...) temp = _voronoi(temp, ##__VA_ARGS__)
+tex_builder_t _voronoi(tex_builder_t tex, float intensity, color_t color);
 
 /* helper macros */
 #define TOKEN_PASTE(a, b) a##b
@@ -113,6 +117,7 @@ tex_builder_t   __rect(tex_builder_t texer, unsigned int x, unsigned int y, unsi
 
 #define _scope_tex_build(tex, builder) \
     for (tex_builder_t temp = builder; temp.i == 0; (temp.i+=1, atlas = _create(temp)))
+// TODO do x,y,w,h
 #define _scope_tex_rect(x,y,h,w) \
     for (int UNIQUE_VAR(old_x_start) = temp.x_start, \
              UNIQUE_VAR(old_y_start) = temp.y_start, \
@@ -158,7 +163,9 @@ tex_builder_t _noise(tex_builder_t texer, float intensity)  {
     texture_t* tex = &(texer.tex);
 
     static unsigned int random = 0;
-    srand(time(0) + random);
+    //srand(time(0) + random); // reseeds every frame
+    srand(time(0)); // reseeds every second
+    //srand(); // no reseeding
     random = rand();
 
     for (size_t y = texer.y_start; y < (texer.y_start + texer.height); y++) {

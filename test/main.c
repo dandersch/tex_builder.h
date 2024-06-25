@@ -19,8 +19,8 @@ static state_t* state = NULL;
 static SDL_GLContext context;
 static SDL_Window* window;
 
-#define WINDOW_WIDTH  256
-#define WINDOW_HEIGHT 256
+#define WINDOW_WIDTH  512
+#define WINDOW_HEIGHT 512
 
 #define SHADER_STRINGIFY(x) "#version 330\n" #x
 const char* vertex_shader_source = SHADER_STRINGIFY(
@@ -71,8 +71,8 @@ typedef struct vertex_t {
 } vertex_t;
 const float x = 0; // position for rendered quad on screen
 const float y = 0; // position for rendered quad on screen
-const float tex_size_x = (float) 256; // NOTE rename to quad_size
-const float tex_size_y = (float) 256; // NOTE rename to quad_size
+const float tex_size_x = (float) WINDOW_WIDTH; // NOTE rename to quad_size
+const float tex_size_y = (float) WINDOW_HEIGHT; // NOTE rename to quad_size
 // vertices for a quad
 const vertex_t vertices[] = {
      // bottom right tri
