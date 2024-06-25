@@ -112,6 +112,9 @@ tex_builder_t _rect(tex_builder_t tex, unsigned int x, unsigned int y, unsigned 
 #define circle(...) _circle(&temp, __VA_ARGS__)
 void   _circle(tex_builder_t* tex, unsigned int x, unsigned int y, unsigned int radius, color_t color);
 
+#define        outline(color,thick) temp = _outline(temp, color, thick); _scope_tex_rect(thick,thick,temp.height-(thick*2),temp.width-(thick*2)) /* TODO why do we need (thick*2) here? */
+tex_builder_t _outline(tex_builder_t tex, color_t color, unsigned int thickness);
+
 /* for debugging */
 #define      pixel(...) temp = _pixel(temp, ##__VA_ARGS__) // places a pixel at the current {x,y} start
 static tex_builder_t _pixel(tex_builder_t tex) {
@@ -237,6 +240,30 @@ tex_builder_t _flip(tex_builder_t texer) {
     }
 
     return texer;
+}
+
+tex_builder_t _outline(tex_builder_t tex, color_t color, unsigned int thickness) {
+    int x, y;
+
+    for (x = tex.x_start; x < tex.x_start + tex.width; x++) {
+        for (y = tex.y_start; y < tex.y_start + thickness; y++) {
+            tex.tex.rgb[y * tex.tex.width + x] = color; /* top side */
+        }
+        for (y = tex.y_start + tex.height - thickness; y < tex.y_start + tex.height; y++) {
+            tex.tex.rgb[y * tex.tex.width + x] = color; /* bottom side */
+        }
+    }
+
+    for (y = tex.y_start + thickness; y < tex.y_start + tex.height - thickness; y++) {
+        for (x = tex.x_start; x < tex.x_start + thickness; x++) {
+            tex.tex.rgb[y * tex.tex.width + x] = color; /* left side */
+        }
+        for (x = tex.x_start + tex.width - thickness; x < tex.x_start + tex.width; x++) {
+            tex.tex.rgb[y * tex.tex.width + x] = color; /* right side */
+        }
+    }
+
+    return tex;
 }
 
 tex_builder_t texture(int w, int h) {

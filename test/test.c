@@ -89,8 +89,20 @@ __attribute__((visibility("default"))) int generate_textures(state_t* state, flo
             scope_rectcut_right(2) { rect(0, lerp(zero_to_one,0,25),2,8,WHITE); }
         }
 
+        /* zoom-in */
         scope_tex_rect(0,32,32,32)  {
             color(BLUE);
+            unsigned int t = zero_to_one * 4;
+            outline(RED, t) {
+                outline(GRAY,t) {
+                    outline(YELLOW,t) {
+                        outline(CYAN,t) {
+                            outline(GREEN,t) {
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         /* testing clamping */
