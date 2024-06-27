@@ -43,6 +43,8 @@
  *   make work in glsl shader code
  *   check if it works with C++ and MSVC
  *   generate normal maps along texture for operations that add depth (e.g. insets)
+ *
+ *   flags(MIRROR|BLEND_ALPHA);
  */
 
 
@@ -68,9 +70,12 @@ typedef struct tex_builder_t {
     size_t atlas_width;
     size_t atlas_height;
 
-    /* bounds of where we are currently drawing */
-    int x_start, y_start;
-    int width, height;
+    // int flags; TODO bitfield containing e.g. TEX_BUILD_{FLIP,MIRROR,BLEND_ALPHA}
+
+    struct {
+        int x, y;
+        int w, h;
+    } mask;
 
     /* used in for-loop macros */
     int i;
@@ -79,13 +84,11 @@ typedef struct tex_builder_t {
 /*
  * api
  */
-// NOTE(GLSL): no forward declarations of functions in glsl
 /* building api (allocating) */
 tex_builder_t texture(int w, int h);
-tex_builder_t tex_copy(texture_t tex); // TODO unused
 
 /* scope api */
-#define scope_tex_build(tex, builder) _scope_tex_build(tex, builder)
+#define scope_tex_build(tex, builder) _scope_tex_build_threaded(tex,builder,0,1)
 #define scope_tex_rect(x,y,h,w)       _scope_tex_rect(x,y,h,w)
 
 #define scope_rectcut_top(cut)        _scope_rectcut_top(cut)
@@ -93,42 +96,23 @@ tex_builder_t tex_copy(texture_t tex); // TODO unused
 #define scope_rectcut_right(cut)      _scope_rectcut_right(cut)
 #define scope_rectcut_bottom(cut)     _scope_rectcut_bottom(cut)
 
-/* transformation api */
-#define        color(...) temp = _color(temp, __VA_ARGS__)
-tex_builder_t _color(tex_builder_t tex, color_t color);
-
-#define        noise(...) temp = _noise(temp, __VA_ARGS__)
-tex_builder_t _noise(tex_builder_t  tex, float intensity); /* TODO should take a color value */
-
-#define        flip(...)    temp = _flip(temp, ##__VA_ARGS__)
-tex_builder_t _flip(tex_builder_t texer);
-#define        mirror(...)  temp = _mirror(temp, ##__VA_ARGS__)
-tex_builder_t _mirror(tex_builder_t tex);
-
-/* NOTE: do we need this one since we can just do scope_tex_rect(...) { color(COLOR); } */
-#define        rect(...) temp = _rect(temp, __VA_ARGS__)
-tex_builder_t _rect(tex_builder_t tex, unsigned int x, unsigned int y, unsigned int width, unsigned int height, color_t color);
-/* TODO reimplement */
-#define circle(...) _circle(&temp, __VA_ARGS__)
-void   _circle(tex_builder_t* tex, unsigned int x, unsigned int y, unsigned int radius, color_t color);
-
+/* drawing api */
+#define        color(...) temp = _color(temp, pixel_x, pixel_y, __VA_ARGS__)
+tex_builder_t _color(tex_builder_t tex, int pixel_x, int pixel_y, color_t color);
+#define        noise(...) temp = _noise(temp, pixel_x, pixel_y, __VA_ARGS__)
+tex_builder_t _noise(tex_builder_t  tex, int pixel_x, int pixel_y, float intensity); /* TODO should take a color value */
 #define        outline(color,thick) temp = _outline(temp, color, thick); _scope_tex_rect(thick,thick,temp.height-(thick*2),temp.width-(thick*2)) /* TODO why do we need (thick*2) here? */
 tex_builder_t _outline(tex_builder_t tex, color_t color, unsigned int thickness);
-
 /* for debugging */
-#define      pixel(...) temp = _pixel(temp, ##__VA_ARGS__) // places a pixel at the current {x,y} start
+#define        pixel(...) temp = _pixel(temp, ##__VA_ARGS__) // places a pixel at the current {x,y} start
 static tex_builder_t _pixel(tex_builder_t tex) {
-   size_t index = (tex.y_start * tex.atlas_width) + tex.x_start;
+   size_t index = (tex.mask.y * tex.atlas_width) + tex.mask.x;
    tex.tex.rgb[index] = (color_t){1,1,1,1};
    return tex;
 }
 
 /* called by internally by macros */
-tex_builder_t   __rect(tex_builder_t texer, unsigned int x, unsigned int y, unsigned int width, unsigned int height);
-
-/* TODO */
-#define voronoi(...) temp = _voronoi(temp, ##__VA_ARGS__)
-tex_builder_t _voronoi(tex_builder_t tex, float intensity, color_t color);
+tex_builder_t _set_mask(tex_builder_t* builder, unsigned int x, unsigned int y, unsigned int width, unsigned int height);
 
 /* helper macros */
 #define TOKEN_PASTE(a, b) a##b
@@ -138,34 +122,32 @@ tex_builder_t _voronoi(tex_builder_t tex, float intensity, color_t color);
 #define max(a, b) (((a) > (b)) ? (a) : (b))
 #define CLAMP(x, min, max) ((x) < (min) ? (min) : ((x) > (max) ? (max) : (x)))
 
-#define _scope_tex_build(tex, builder) \
-    for (tex_builder_t temp = builder; temp.i == 0; (temp.i+=1, atlas = _create(temp)))
-// TODO do x,y,w,h
-#define _scope_tex_rect(x,y,h,w) \
-    for (int UNIQUE_VAR(old_x_start) = temp.x_start, \
-             UNIQUE_VAR(old_y_start) = temp.y_start, \
-             UNIQUE_VAR(old_width)   = temp.width,   \
-             UNIQUE_VAR(old_height)  = temp.height,  \
-             UNIQUE_VAR(j)           = (temp = __rect(temp,                        \
-                                                      CLAMP(x + UNIQUE_VAR(old_x_start), UNIQUE_VAR(old_x_start), UNIQUE_VAR(old_x_start) + temp.width), \
-                                                      min(y + UNIQUE_VAR(old_y_start), UNIQUE_VAR(old_y_start) + temp.height), \
-                                                      (((x + UNIQUE_VAR(old_x_start) + w)  > (UNIQUE_VAR(old_x_start) + temp.width))  ? (w - ((x + UNIQUE_VAR(old_x_start) + w)  - (UNIQUE_VAR(old_x_start) + temp.width))) \
-                                                                                                                                      : (x + UNIQUE_VAR(old_x_start) < UNIQUE_VAR(old_x_start)) ? ((x + UNIQUE_VAR(old_x_start) + w) - UNIQUE_VAR(old_x_start)) : w), \
-                                                      (((y + UNIQUE_VAR(old_y_start) + h)  > (UNIQUE_VAR(old_y_start) + temp.height)) ? (h - ((y + UNIQUE_VAR(old_y_start) + h)  - (UNIQUE_VAR(old_y_start) + temp.height))) \
-                                                                                                                                      : (y + UNIQUE_VAR(old_y_start) < UNIQUE_VAR(old_y_start)) ? ((y + UNIQUE_VAR(old_y_start) + h) - UNIQUE_VAR(old_y_start)) : h) \
-                                                      ), 0);                       \
-         UNIQUE_VAR(j) == 0; \
-         (UNIQUE_VAR(j)+=1,                       \
-          temp.x_start = UNIQUE_VAR(old_x_start), \
-          temp.y_start = UNIQUE_VAR(old_y_start), \
-          temp.width   = UNIQUE_VAR(old_width),   \
-          temp.height  = UNIQUE_VAR(old_height)))
+/* helper functions */
+static inline float step(float edge, float x) { return x >= edge ? 1.0f : 0.0f; }
+static inline color_t alpha_blend(color_t src, color_t dst) {
+    color_t blend;
+    blend.r = CLAMP(src.r * src.a + dst.r * (1.0f - src.a), 0.0f, 1.0f);
+    blend.g = CLAMP(src.g * src.a + dst.g * (1.0f - src.a), 0.0f, 1.0f);
+    blend.b = CLAMP(src.b * src.a + dst.b * (1.0f - src.a), 0.0f, 1.0f);
+    blend.a = 0.0f; // TODO for some reason we need to set it to 0 not see glClearColor...
+    return blend;
+}
 
+#define _scope_tex_build_threaded(tex, builder, thread_id, thread_count)                   \
+    for (tex_builder_t temp = builder; temp.i == 0; (temp.i+=1, tex = _create(temp)))      \
+        for (int pixel_x = thread_id; pixel_x < temp.atlas_width; pixel_x += thread_count) \
+            for (int pixel_y = 0; pixel_y < temp.atlas_height; pixel_y++)
+
+#define _scope_tex_rect(x,y,w,h) \
+    for (tex_builder_t UNIQUE_VAR(old_builder) = _set_mask(&temp, x,y,w,h); \
+         UNIQUE_VAR(old_builder).i == 0;                                    \
+         (temp = UNIQUE_VAR(old_builder), UNIQUE_VAR(old_builder).i+=1))
+
+/* TODO test again */
 #define _scope_rectcut_top(cut)    _scope_tex_rect(0, 0, cut, temp.width)
 #define _scope_rectcut_left(cut)   _scope_tex_rect(0, 0, temp.height, cut)
 #define _scope_rectcut_right(cut)  _scope_tex_rect((temp.width - cut), 0, temp.height, cut)
 #define _scope_rectcut_bottom(cut) _scope_tex_rect(0, (temp.height - cut), cut, temp.width)
-
 
 /* internal */
 #ifdef TEX_BUILDER_IMPLEMENTATION
@@ -173,95 +155,64 @@ tex_builder_t _voronoi(tex_builder_t tex, float intensity, color_t color);
 #include <math.h>   // for RAND_MAX, ...
 #include <assert.h> // TODO take in assert macro from user
 #include <time.h>   // for seeding srand()
-tex_builder_t _color(tex_builder_t tex, color_t color) {
+tex_builder_t _color(tex_builder_t tex, int pixel_x, int pixel_y, color_t color) {
+    float clip = step(tex.mask.x, pixel_x) * step(pixel_x, tex.mask.x + tex.mask.w) * step(tex.mask.y, pixel_y) * step(pixel_y, tex.mask.y + tex.mask.h);
+
+    color.r *= clip;
+    color.g *= clip;
+    color.b *= clip;
+    color.a *= clip;
+
     /* color the subtexture */
-    for (size_t y = tex.y_start; y < (tex.y_start + tex.height); y++) {
-        for (size_t x = tex.x_start; x < (tex.x_start + tex.width); x++) {
-            size_t index = (y * tex.atlas_width) + x;
-            tex.tex.rgb[index] = color;
-        }
-    }
+    size_t index = (pixel_y * tex.atlas_width) + pixel_x;
+    tex.tex.rgb[index] = alpha_blend(color, tex.tex.rgb[index]);
 
     return tex;
 }
 
-tex_builder_t _noise(tex_builder_t texer, float intensity)  {
-    texture_t* tex = &(texer.tex);
+tex_builder_t _noise(tex_builder_t texer, int pixel_x, int pixel_y, float intensity)  {
+    float clip = step(texer.mask.x, pixel_x) * step(pixel_x, texer.mask.x + texer.mask.w) * step(texer.mask.y, pixel_y) * step(pixel_y, texer.mask.y + texer.mask.h);
 
-    static unsigned int random = 0;
-    //srand(time(0) + random); // reseeds every frame
-    srand(time(0)); // reseeds every second
-    //srand(); // no reseeding
-    random = rand();
+    if (!(clip > 0.0f)) { return texer; }; /* NOTE: early out is actually faster on CPUs (still needs testing with shaders)  */
 
-    for (size_t y = texer.y_start; y < (texer.y_start + texer.height); y++) {
-        for (size_t x = texer.x_start; x < (texer.x_start + texer.width); x++) {
-            size_t idx = (y * texer.atlas_width) + x;
-            // Add noise to each color component based on intensity
-            tex->rgb[idx].r += intensity * ((float)rand() / (float) RAND_MAX - 0.5f);
-            tex->rgb[idx].g += intensity * ((float)rand() / (float) RAND_MAX - 0.5f);
-            tex->rgb[idx].b += intensity * ((float)rand() / (float) RAND_MAX - 0.5f);
+    size_t idx = (pixel_y * texer.atlas_width) + pixel_x;
+    color_t noise;
 
-            // Ensure color components are within [0, 1] range
-            tex->rgb[idx].r = fminf(fmaxf(tex->rgb[idx].r, 0.0f), 1.0f);
-            tex->rgb[idx].g = fminf(fmaxf(tex->rgb[idx].g, 0.0f), 1.0f);
-            tex->rgb[idx].b = fminf(fmaxf(tex->rgb[idx].b, 0.0f), 1.0f);
-        }
-    }
+    /* Add noise to each color component based on intensity */
+    noise.r = texer.tex.rgb[idx].r + intensity * ((float)rand() / (float) RAND_MAX - 0.5f);
+    noise.g = texer.tex.rgb[idx].g + intensity * ((float)rand() / (float) RAND_MAX - 0.5f);
+    noise.b = texer.tex.rgb[idx].b + intensity * ((float)rand() / (float) RAND_MAX - 0.5f);
+
+    /* clamp colors to [0, 1] and clip if needed */
+    noise.r = (fminf(fmaxf(noise.r, 0.0f), 1.0f) * clip);
+    noise.g = (fminf(fmaxf(noise.g, 0.0f), 1.0f) * clip);
+    noise.b = (fminf(fmaxf(noise.b, 0.0f), 1.0f) * clip);
+    noise.a = clip;
+
+    texer.tex.rgb[idx] = alpha_blend(noise, texer.tex.rgb[idx]);
 
     return texer;
 }
-
-tex_builder_t _mirror(tex_builder_t texer) {
-    /* mirror texture column by column */
-    for (size_t y = 0; y < texer.height; y++) {
-        for (size_t x = 0; x < texer.width / 2; x++) {
-            size_t idx_left = (texer.y_start + y) * texer.atlas_width + (texer.x_start + x);
-            size_t idx_right = (texer.y_start + y) * texer.atlas_width + (texer.x_start + texer.width - 1 - x);
-            color_t temp = texer.tex.rgb[idx_left];
-            texer.tex.rgb[idx_left] = texer.tex.rgb[idx_right];
-            texer.tex.rgb[idx_right] = temp;
-        }
-    }
-
-    return texer;
-}
-
-tex_builder_t _flip(tex_builder_t texer) {
-    /* flip the texture upside down row by row */
-    for (size_t y = 0; y < texer.height / 2; y++) {
-        for (size_t x = 0; x < texer.width; x++) {
-            size_t idx_top = (texer.y_start + y) * texer.atlas_width + (texer.x_start + x);
-            size_t idx_bottom = (texer.y_start + texer.height - 1 - y) * texer.atlas_width + (texer.x_start + x);
-            color_t temp = texer.tex.rgb[idx_top];
-            texer.tex.rgb[idx_top] = texer.tex.rgb[idx_bottom];
-            texer.tex.rgb[idx_bottom] = temp;
-        }
-    }
-
-    return texer;
-}
-
 tex_builder_t _outline(tex_builder_t tex, color_t color, unsigned int thickness) {
     int x, y;
 
-    for (x = tex.x_start; x < tex.x_start + tex.width; x++) {
-        for (y = tex.y_start; y < tex.y_start + thickness; y++) {
-            tex.tex.rgb[y * tex.tex.width + x] = color; /* top side */
-        }
-        for (y = tex.y_start + tex.height - thickness; y < tex.y_start + tex.height; y++) {
-            tex.tex.rgb[y * tex.tex.width + x] = color; /* bottom side */
-        }
-    }
+    //for (x = tex.x_start; x < tex.x_start + tex.width; x++) {
+    //    for (y = tex.y_start; y < tex.y_start + thickness; y++) {
+    //        tex.tex.rgb[y * tex.tex.width + x] = color; /* top side */
+    //    }
+    //    for (y = tex.y_start + tex.height - thickness; y < tex.y_start + tex.height; y++) {
+    //        tex.tex.rgb[y * tex.tex.width + x] = color; /* bottom side */
+    //    }
+    //}
 
-    for (y = tex.y_start + thickness; y < tex.y_start + tex.height - thickness; y++) {
-        for (x = tex.x_start; x < tex.x_start + thickness; x++) {
-            tex.tex.rgb[y * tex.tex.width + x] = color; /* left side */
-        }
-        for (x = tex.x_start + tex.width - thickness; x < tex.x_start + tex.width; x++) {
-            tex.tex.rgb[y * tex.tex.width + x] = color; /* right side */
-        }
-    }
+    //for (y = tex.y_start + thickness; y < tex.y_start + tex.height - thickness; y++) {
+    //    for (x = tex.x_start; x < tex.x_start + thickness; x++) {
+    //        tex.tex.rgb[y * tex.tex.width + x] = color; /* left side */
+    //    }
+    //    for (x = tex.x_start + tex.width - thickness; x < tex.x_start + tex.width; x++) {
+    //        tex.tex.rgb[y * tex.tex.width + x] = color; /* right side */
+    //    }
+    //}
 
     return tex;
 }
@@ -272,11 +223,13 @@ tex_builder_t texture(int w, int h) {
     /* init builder */
     texer.atlas_width  = w;
     texer.atlas_height = h;
-    texer.width        = w;
-    texer.height       = h;
-    texer.x_start      = 0;
-    texer.y_start      = 0;
     texer.i            = 0;
+
+    /* set mask */
+    texer.mask.x = 0;
+    texer.mask.y = 0;
+    texer.mask.w = w;
+    texer.mask.h = h;
 
     /* init texture */
     texer.tex.width    = w;
@@ -286,93 +239,22 @@ tex_builder_t texture(int w, int h) {
     return texer;
 }
 
-tex_builder_t tex_copy(texture_t tex) {
-    tex_builder_t texer;
-    texer.tex.width       = tex.width;
-    texer.tex.height      = tex.height;
-    texer.tex.rgb         = malloc(tex.width * tex.height * sizeof(color_t));
-    for (int i = 0; i < (tex.width * tex.height); i++)
-    {
-        texer.tex.rgb[i] = tex.rgb[i];
-    }
-    return texer;
+/* return copy of old builder, modify current builder's mask */
+tex_builder_t _set_mask(tex_builder_t* builder, unsigned int x, unsigned int y, unsigned int width, unsigned int height) {
+    tex_builder_t old = *builder;
+
+    builder->mask.x = CLAMP(x + builder->mask.x, builder->mask.x, builder->mask.x + builder->mask.w); // NOTE: makes it so the rect is still visible for x outside of bounds
+    builder->mask.y = CLAMP(y + builder->mask.y, builder->mask.y, builder->mask.y + builder->mask.h);
+
+    /* TODO clamp w,h properly */
+    builder->mask.w = min(width, builder->mask.w);
+    builder->mask.h = min(height, builder->mask.h);
+
+    return old;
 }
 
-tex_builder_t __rect(tex_builder_t texer, unsigned int x, unsigned int y, unsigned int width, unsigned int height) {
-    tex_builder_t temp = texer;
-    temp.x_start = x;
-    temp.y_start = y;
-    temp.width   = width;
-    temp.height  = height;
-    return temp;
-}
-
+/* NOTE: this is called for every single thread right now */
 texture_t _create(tex_builder_t texer) {
     return texer.tex;
-}
-
-tex_builder_t _rect(tex_builder_t texer, unsigned int x, unsigned int y, unsigned int width, unsigned int height, color_t color)  {
-    /* TODO restrict rectangle to the bounds of the texture */
-    if (x + width  > texer.x_start + texer.width)  { width  = texer.width;  }
-    if (y + height > texer.y_start + texer.height) { height = texer.height; }
-    if (x >= (texer.x_start + texer.width))  { x = texer.x_start + texer.width;  width  = 0; }
-    if (y >= (texer.y_start + texer.height)) { y = texer.y_start + texer.height; height = 0; }
-
-    /* color the subtexture */
-    for (size_t y_idx = (texer.y_start + y); y_idx < (texer.y_start + y + height); y_idx++) {
-        for (size_t x_idx = (texer.x_start + x); x_idx < (texer.x_start + x + width); x_idx++) {
-            size_t index = (y_idx * texer.atlas_width) + x_idx;
-            texer.tex.rgb[index] = color;
-        }
-    }
-
-    return texer;
-}
-
-void _circle(tex_builder_t* texer, unsigned int x, unsigned int y, unsigned int radius, color_t color) {
-    texture_t* tex = &(texer->tex);
-
-    // filled circle using midpoint circle algorithm
-    int cx = radius - 1;
-    int cy = 0;
-    int dx = 1;
-    int dy = 1;
-    int err = dx - (radius << 1);
-
-    while (cx >= cy) {
-        for (int i = x - cx; i <= x + cx; i++) {
-            if (i >= 0 && i < tex->width && y + cy >= 0 && y + cy < tex->height) {
-                size_t index = (y + cy) * tex->width + i;
-                tex->rgb[index] = color;
-            }
-            if (i >= 0 && i < tex->width && y - cy >= 0 && y - cy < tex->height) {
-                size_t index = (y - cy) * tex->width + i;
-                tex->rgb[index] = color;
-            }
-        }
-
-        for (int i = x - cy; i <= x + cy; i++) {
-            if (i >= 0 && i < tex->width && y + cx >= 0 && y + cx < tex->height) {
-                size_t index = (y + cx) * tex->width + i;
-                tex->rgb[index] = color;
-            }
-            if (i >= 0 && i < tex->width && y - cx >= 0 && y - cx < tex->height) {
-                size_t index = (y - cx) * tex->width + i;
-                tex->rgb[index] = color;
-            }
-        }
-
-        if (err <= 0) {
-            cy++;
-            err += dy;
-            dy += 2;
-        }
-
-        if (err > 0) {
-            cx--;
-            dx += 2;
-            err += dx - (radius << 1);
-        }
-    }
 }
 #endif

@@ -29,108 +29,83 @@ __attribute__((visibility("default"))) int alloc_texture(state_t* state) {
 }
 
 #define lerp(t, a, b) (a + t * (b - a))
-__attribute__((visibility("default"))) int generate_textures(state_t* state, float dt)
+
+typedef struct thread_t { pthread_t id; int nr; int count; texture_t* tex; tex_builder_t builder; } thread_t;
+void* tex_build(void* args)
 {
+    thread_t* t = (thread_t*) args;
+    _scope_tex_build_threaded(*t->tex, t->builder, t->nr, t->count)
+    {
+        color(GRAY);
+        scope_tex_rect(32,32,31,31) {
+            color(GREEN);
+            pixel();
+            scope_tex_rect(8,8,24,33) {
+                color(RED);
+                noise(0.8);
+                pixel();
+            }
+        }
+        scope_tex_rect(0,0,31,31) {
+            color(GREEN);
+            pixel();
+            scope_tex_rect(0,0,16,16) {
+                color(RED);
+                noise(0.8);
+                pixel();
+            }
+        }
+        scope_tex_rect(32,0,31,31) {
+            color(GREEN);
+            pixel();
+            scope_tex_rect(0,0,16,16) {
+                color(RED);
+                noise(0.8);
+                pixel();
+            }
+        }
+        scope_tex_rect(64,0,32,32) {
+            color(GREEN);
+            pixel();
+            scope_tex_rect(0,16,16,16) {
+                color(RED);
+                noise(0.8);
+                pixel();
+            }
+        }
+    }
+
+    return NULL;
+}
+
+#include <pthread.h>
+__attribute__((visibility("default"))) int generate_textures(state_t* state, float dt) {
+    /* animation test */
     static float timer = 0; timer += dt;
     float zero_to_one = (sinf(timer) + 1)/2;
     color_t _COLOR  = {zero_to_one,0,0.4,1};
 
-    /* texture building usage code */
-    texture_t atlas;
-    scope_tex_build(atlas, state->tex_builder) {
-        color(NONE);
+    /* reset srand() */
+    //static unsigned int random = 0;
+    //srand(time(0) + random); // reseeds every frame
+    srand(time(0)); // reseeds every second (TODO does this in every thread...)
+    //srand(); // no reseeding
+    //random = rand();
 
-        /* creeper face */
-        scope_tex_rect(0,0,32,32)   {
-            color(GREEN);
-            noise(1.0);
-            scope_tex_rect(4,8,8,8) {
-                color(BLACK);
-                scope_tex_rect(2,2,4,4) {
-                    color(_COLOR);
-                }
-            }
-            scope_tex_rect(20,8,8,8) {
-                color(BLACK);
-                scope_tex_rect(2,2,4,4) {
-                    color(_COLOR);
-                }
-            }
-            scope_tex_rect(12,16,16,8) { color(BLACK); }
-            scope_tex_rect(8,20,16,16) { color(BLACK); }
-            scope_tex_rect(12,(int) lerp(zero_to_one, 28, 33),16,8)  { color(GREEN); noise(1.0); } // NOTE: not properly cut off
-        }
+    texture_t atlas = {0};
 
-        /* sliding door */
-        scope_tex_rect(32,0,32,32)  {
-            color(BLACK);
-            scope_rectcut_left((int) lerp(zero_to_one, 18, 0)) {
-                color(GRAY);
-                noise(0.3);
-                scope_rectcut_right(3) {
-                  color((color_t){0.2,0.3,0.5,1});
-                }
-            }
-            scope_rectcut_right((int) lerp(zero_to_one, 18, 0)) {
-                color(GRAY);
-                noise(0.3);
-                scope_rectcut_left(3) {
-                  color((color_t){0.2,0.5,0.5,1});
-                }
-            }
-        }
+    #define NUM_THREADS 8
+    thread_t threads[NUM_THREADS];
+    for (int i = 0; i < NUM_THREADS; i++) {
+        threads[i].count = NUM_THREADS;
+        threads[i].nr       = i;
+        threads[i].tex      = &atlas;
+        threads[i].builder  = state->tex_builder;
+        pthread_create(&threads[i].id, NULL, tex_build, (void*) &threads[i]);
+    }
 
-        /* pong animation */
-        scope_tex_rect(64,0,32,32)  {
-            color(GRAY);
-            noise(0.1);
-            rect(lerp(zero_to_one,2,28), lerp(zero_to_one,3,28),3,3,WHITE);
-            scope_rectcut_left(2)  { rect(0, lerp(zero_to_one,0,25),2,8,WHITE); }
-            scope_rectcut_right(2) { rect(0, lerp(zero_to_one,0,25),2,8,WHITE); }
-        }
-
-        /* zoom-in */
-        scope_tex_rect(0,32,32,32)  {
-            color(BLUE);
-            unsigned int t = zero_to_one * 4;
-            outline(RED, t) {
-                outline(GRAY,t) {
-                    outline(YELLOW,t) {
-                        outline(CYAN,t) {
-                            outline(GREEN,t) {
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        /* testing clamping */
-        scope_tex_rect(32,32,32,32) {
-            color(BLACK);
-            scope_tex_rect(0, (int) lerp(zero_to_one, 0, 33),32,32) {
-                color(ORANGE);
-                scope_rectcut_left(10)  { color(YELLOW); }
-                scope_rectcut_right(10) { color(YELLOW); }
-                scope_rectcut_top(5)    { color(ORANGE); }
-            }
-        }
-
-        scope_tex_rect(64,32,32,32) {
-            color(GRAY);
-        }
-
-        /* using for loops for generating */
-        for (int i = 0; i < 3; i++) {
-            scope_tex_rect(32 * i,64,32,32) {
-                switch (i) {
-                    case 0: { color(YELLOW);  } break;
-                    //case 1: { color(MAGENTA); } break;
-                    case 2: { color(CYAN);    } break;
-                }
-            }
-        }
-        flip(); /* flip to match opengl's origin at top-left */
+    for (int i = 0; i < NUM_THREADS; i++) {
+        pthread_join(threads[i].id, NULL);
     }
 
     state->tex[0] = atlas;
