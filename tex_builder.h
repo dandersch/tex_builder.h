@@ -270,8 +270,9 @@ tex_builder_t _set_mask(tex_builder_t* builder, unsigned int x, unsigned int y, 
     builder->mask.y = CLAMP(y + builder->mask.y, builder->mask.y, builder->mask.y + builder->mask.h);
 
     /* TODO clamp w,h properly */
-    builder->mask.w = min(width, builder->mask.w);
-    builder->mask.h = min(height, builder->mask.h);
+    /* TODO we are off by one pixel if we don't do -1 here, find out why & and if this was the case before the rewrite */
+    builder->mask.w = min(width - 1, builder->mask.w);
+    builder->mask.h = min(height- 1, builder->mask.h);
 
     return old;
 }

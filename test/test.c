@@ -37,6 +37,118 @@ void* tex_build(void* args)
     _scope_tex_build_threaded(*t->tex, t->builder, t->nr, t->count)
     {
         color(GRAY);
+        pixel();
+        scope_tex_rect(8,8,4,4) {
+            color(BLUE);
+            pixel();
+            scope_tex_rect(0,0,16,16) {
+                color(RED);
+                noise(0.8);
+                pixel();
+            }
+        }
+        scope_tex_rect(32,0,32,32) {
+            color(GREEN);
+            pixel();
+            scope_tex_rect(0,0,16,16) {
+                color(RED);
+                noise(0.8);
+                pixel();
+            }
+        }
+        scope_tex_rect(64,0,32,32) {
+            color(GREEN);
+            pixel();
+            scope_tex_rect(0,16,16,16) {
+                color(RED);
+                noise(0.8);
+                pixel();
+            }
+        }
+        scope_tex_rect(0,32,32,32) {
+            color(GREEN);
+            pixel();
+            scope_tex_rect(0,16,16,16) {
+                color(RED);
+                pixel();
+            }
+        }
+        scope_tex_rect(0,64,32,32) {
+            color(YELLOW);
+            pixel();
+            scope_tex_rect(0,16,16,16) {
+                color(RED);
+                pixel();
+            }
+        }
+        scope_tex_rect(64,64,32,32) {
+            color(YELLOW);
+            pixel();
+            scope_tex_rect(0,16,16,16) {
+                color(RED);
+                pixel();
+            }
+        }
+        scope_tex_rect(32,64,32,32) {
+            color(GREEN);
+            pixel();
+            scope_tex_rect(0,16,16,16) {
+                color(RED);
+                pixel();
+            }
+        }
+        scope_tex_rect(64,32,32,32) {
+            color(YELLOW);
+            pixel();
+            scope_tex_rect(0,16,16,16) {
+                color(RED);
+                pixel();
+            }
+        }
+        scope_tex_rect(32,32,32,32) {
+            color(GREEN);
+            pixel();
+            scope_tex_rect(8,8,24,33) {
+                color(RED);
+                noise(0.8);
+                pixel();
+            }
+        }
+    }
+
+    return NULL;
+}
+
+#include <pthread.h>
+__attribute__((visibility("default"))) int generate_textures(state_t* state, float dt) {
+    /* animation test */
+    static float timer = 0; timer += dt;
+    float zero_to_one = (sinf(timer) + 1)/2;
+    color_t _COLOR  = {zero_to_one,0,0.4,1};
+
+    /* reset srand() */
+    //static unsigned int random = 0;
+    //srand(time(0) + random); // reseeds every frame
+    srand(time(0)); // reseeds every second
+    //srand(); // no reseeding
+    //random = rand();
+
+    texture_t atlas = {0};
+
+    #define NUM_THREADS 8
+    thread_t threads[NUM_THREADS];
+    for (int i = 0; i < NUM_THREADS; i++) {
+        threads[i].count = NUM_THREADS;
+        threads[i].nr       = i;
+        threads[i].tex      = &atlas;
+        threads[i].builder  = state->tex_builder;
+        pthread_create(&threads[i].id, NULL, tex_build, (void*) &threads[i]);
+    }
+
+    #if 0
+    scope_tex_build(atlas, state->tex_builder)
+    {
+        color(GRAY);
         scope_tex_rect(32,32,31,31) {
             color(GREEN);
             pixel();
@@ -46,7 +158,7 @@ void* tex_build(void* args)
                 pixel();
             }
         }
-        scope_tex_rect(0,0,31,31) {
+        scope_tex_rect(0,0,32,32) {
             color(GREEN);
             pixel();
             scope_tex_rect(0,0,16,16) {
@@ -73,36 +185,48 @@ void* tex_build(void* args)
                 pixel();
             }
         }
+        scope_tex_rect(0,32,32,32) {
+            color(GREEN);
+            pixel();
+            scope_tex_rect(0,16,16,16) {
+                color(RED);
+                pixel();
+            }
+        }
+        scope_tex_rect(0,64,32,32) {
+            color(YELLOW);
+            pixel();
+            scope_tex_rect(0,16,16,16) {
+                color(RED);
+                pixel();
+            }
+        }
+        scope_tex_rect(64,64,32,32) {
+            color(YELLOW);
+            pixel();
+            scope_tex_rect(0,16,16,16) {
+                color(RED);
+                pixel();
+            }
+        }
+        scope_tex_rect(32,64,32,32) {
+            color(GREEN);
+            pixel();
+            scope_tex_rect(0,16,16,16) {
+                color(RED);
+                pixel();
+            }
+        }
+        scope_tex_rect(64,32,32,32) {
+            color(GREEN);
+            pixel();
+            scope_tex_rect(0,16,16,16) {
+                color(RED);
+                pixel();
+            }
+        }
     }
-
-    return NULL;
-}
-
-#include <pthread.h>
-__attribute__((visibility("default"))) int generate_textures(state_t* state, float dt) {
-    /* animation test */
-    static float timer = 0; timer += dt;
-    float zero_to_one = (sinf(timer) + 1)/2;
-    color_t _COLOR  = {zero_to_one,0,0.4,1};
-
-    /* reset srand() */
-    //static unsigned int random = 0;
-    //srand(time(0) + random); // reseeds every frame
-    srand(time(0)); // reseeds every second (TODO does this in every thread...)
-    //srand(); // no reseeding
-    //random = rand();
-
-    texture_t atlas = {0};
-
-    #define NUM_THREADS 8
-    thread_t threads[NUM_THREADS];
-    for (int i = 0; i < NUM_THREADS; i++) {
-        threads[i].count = NUM_THREADS;
-        threads[i].nr       = i;
-        threads[i].tex      = &atlas;
-        threads[i].builder  = state->tex_builder;
-        pthread_create(&threads[i].id, NULL, tex_build, (void*) &threads[i]);
-    }
+    #endif
 
     for (int i = 0; i < NUM_THREADS; i++) {
         pthread_join(threads[i].id, NULL);
