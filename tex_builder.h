@@ -58,9 +58,16 @@
 
 #include <stddef.h>
 
+#ifndef RUN_ON_COMPUTE_SHADER
+/* TODO use these */
+typedef unsigned int uint;
+typedef struct color_t color_t;
+typedef struct texture_t texture_t;
+#endif
+
 // NOTE RGBA vs BGRA layout could be set with a macro
-typedef struct color_t       { float r; float g; float b; float a;        } color_t;
-typedef struct texture_t     { size_t width; size_t height; color_t* rgb; } texture_t;
+struct color_t       { float r; float g; float b; float a;        };
+struct texture_t     { size_t width; size_t height; color_t* rgb; };
 
 /* used internally */
 typedef struct tex_builder_t {
@@ -108,11 +115,7 @@ tex_builder_t _noise(tex_builder_t  tex, int pixel_x, int pixel_y, float intensi
 tex_builder_t _outline(tex_builder_t tex, color_t color, unsigned int thickness);
 /* for debugging */
 #define        pixel(...) temp = _pixel(temp, ##__VA_ARGS__) // places a pixel at the current {x,y} start
-static tex_builder_t _pixel(tex_builder_t tex) {
-   size_t index = (tex.mask.y * tex.atlas_width) + tex.mask.x;
-   tex.tex.rgb[index] = (color_t){1,1,1,1};
-   return tex;
-}
+tex_builder_t _pixel(tex_builder_t tex);
 
 /* called by internally by macros */
 tex_builder_t _set_mask(tex_builder_t* builder, unsigned int x, unsigned int y, unsigned int width, unsigned int height);
@@ -143,10 +146,20 @@ static inline uint get_index(tex_builder_t texer, uint pixel_x, uint pixel_y) {
     return (pixel_y * texer.atlas_width) + pixel_x;
     #endif
 }
+
+#ifndef RUN_ON_COMPUTE_SHADER
+#define _scope_for_every_pixel(thread_id, thread_count) \
+    for (int pixel_x = thread_id; pixel_x < temp.atlas_width; pixel_x += thread_count) \
+        for (int pixel_y = 0; pixel_y < temp.atlas_height; pixel_y++)
+#else
+/* NOTE: in a compute shader, we only use the for loop to sneak in the values for pixel_x and pixel_y */
+#define _scope_for_every_pixel(thread_id, thread_count) \
+    for (int pixel_x = gl_GlobalInvocationID.x, pixel_y = gl_GlobalInvocationID.y, UNIQUE_VAR(i) = 0; UNIQUE_VAR(i) == 0; UNIQUE_VAR(i)++ )
+#endif
+
 #define _scope_tex_build_threaded(tex, builder, thread_id, thread_count)                   \
     for (tex_builder_t temp = builder; temp.i == 0; (temp.i+=1, tex = _create(temp)))      \
-        for (int pixel_x = thread_id; pixel_x < temp.atlas_width; pixel_x += thread_count) \
-            for (int pixel_y = 0; pixel_y < temp.atlas_height; pixel_y++)
+        _scope_for_every_pixel(thread_id, thread_count)
 
 #define _scope_tex_rect(x,y,w,h) \
     for (tex_builder_t UNIQUE_VAR(old_builder) = _set_mask(&temp, x,y,w,h); \
