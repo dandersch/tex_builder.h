@@ -70,7 +70,7 @@ typedef struct tex_builder_t {
     size_t atlas_width;
     size_t atlas_height;
 
-    // int flags; TODO bitfield containing e.g. TEX_BUILD_{FLIP,MIRROR,BLEND_ALPHA}
+    // int flags; // TODO bitfield containing e.g. TEX_BUILD_{FLIP,MIRROR,BLEND_ALPHA}
 
     struct {
         int x, y;
@@ -80,6 +80,9 @@ typedef struct tex_builder_t {
     /* used in for-loop macros */
     int i;
 } tex_builder_t;
+
+/* NOTE: turn into flags that can be set by user */
+#define TEX_BUILDER_FLAG_FLIP 1
 
 /*
  * api
@@ -133,6 +136,13 @@ static inline color_t alpha_blend(color_t src, color_t dst) {
     return blend;
 }
 
+static inline uint get_index(tex_builder_t texer, uint pixel_x, uint pixel_y) {
+    #ifdef TEX_BUILDER_FLAG_FLIP
+    return (texer.atlas_height - pixel_y - 1) * (texer.atlas_width) + pixel_x;
+    #else
+    return (pixel_y * texer.atlas_width) + pixel_x;
+    #endif
+}
 #define _scope_tex_build_threaded(tex, builder, thread_id, thread_count)                   \
     for (tex_builder_t temp = builder; temp.i == 0; (temp.i+=1, tex = _create(temp)))      \
         for (int pixel_x = thread_id; pixel_x < temp.atlas_width; pixel_x += thread_count) \
@@ -164,7 +174,7 @@ tex_builder_t _color(tex_builder_t tex, int pixel_x, int pixel_y, color_t color)
     color.a *= clip;
 
     /* color the subtexture */
-    size_t index = (pixel_y * tex.atlas_width) + pixel_x;
+    size_t index = get_index(tex, pixel_x, pixel_y);
     tex.tex.rgb[index] = alpha_blend(color, tex.tex.rgb[index]);
 
     return tex;
@@ -175,7 +185,7 @@ tex_builder_t _noise(tex_builder_t texer, int pixel_x, int pixel_y, float intens
 
     if (!(clip > 0.0f)) { return texer; }; /* NOTE: early out is actually faster on CPUs (still needs testing with shaders)  */
 
-    size_t idx = (pixel_y * texer.atlas_width) + pixel_x;
+    size_t idx = get_index(texer, pixel_x, pixel_y);
     color_t noise;
 
     /* Add noise to each color component based on intensity */
@@ -251,6 +261,12 @@ tex_builder_t _set_mask(tex_builder_t* builder, unsigned int x, unsigned int y, 
     builder->mask.h = min(height, builder->mask.h);
 
     return old;
+}
+
+tex_builder_t _pixel(tex_builder_t tex) {
+   size_t index = get_index(tex, tex.mask.x, tex.mask.y);
+   tex.tex.rgb[index] = (color_t){1,1,1,1};
+   return tex;
 }
 
 /* NOTE: this is called for every single thread right now */
