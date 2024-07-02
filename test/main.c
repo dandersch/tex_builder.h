@@ -2,7 +2,7 @@
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_loadso.h>  // cross platform dll loading
 
-#include "../tex_builder.h"
+#include "../texer.h"
 #include "common.h" // contains shared state definition
 
 #include <assert.h>

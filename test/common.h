@@ -5,5 +5,5 @@
 typedef struct state_t
 {
     texture_t tex[TEXTURE_COUNT];
-    tex_builder_t tex_builder; // used for generating textures
+    texer_t texer; // used for generating textures
 } state_t;

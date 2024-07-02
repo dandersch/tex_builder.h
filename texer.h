@@ -36,7 +36,7 @@
  *   all drawing operations should have versions that take float (i.e. percentages) instead of pixels
  *   all drawing operations should take in alpha values into account
  *
- *   if we have consider alpha values, we can have masks inside tex_builder_t to implement e.g. scope_tex_circle() {}
+ *   if we have consider alpha values, we can have masks inside texer_t to implement e.g. scope_tex_circle() {}
  *
  *   push/pop pragma warning about shadowing variables when nesting scope_tex_build's
  *
@@ -70,7 +70,7 @@ struct color_t       { float r; float g; float b; float a;        };
 struct texture_t     { size_t width; size_t height; color_t* rgb; };
 
 /* used internally */
-typedef struct tex_builder_t {
+typedef struct texer_t {
     texture_t tex;
 
     /* size of the whole texture NOTE: same as tex.{width,height} */
@@ -86,39 +86,42 @@ typedef struct tex_builder_t {
 
     /* used in for-loop macros */
     int i;
-} tex_builder_t;
+} texer_t;
 
 /* NOTE: turn into flags that can be set by user */
-#define TEX_BUILDER_FLAG_FLIP 1
+#define TEXER_FLAG_FLIP 1
 
 /*
  * api
  */
 /* building api (allocating) */
-tex_builder_t texture(int w, int h);
+texer_t texture(int w, int h);
 
 /* scope api */
-#define scope_tex_build(tex, builder) _scope_tex_build_threaded(tex,builder,0,1)
-#define scope_tex_rect(x,y,h,w)       _scope_tex_rect(x,y,h,w)
+#define texer(tex, builder)                     _texer_threaded(tex,builder,0,1)
+#define texer_threaded(tex, builder, id, count) _texer_threaded(tex,builder,id,count)
+#define texer_rect(x,y,h,w)                     _texer_rect(x,y,h,w)
 
-#define scope_rectcut_top(cut)        _scope_rectcut_top(cut)
-#define scope_rectcut_left(cut)       _scope_rectcut_left(cut)
-#define scope_rectcut_right(cut)      _scope_rectcut_right(cut)
-#define scope_rectcut_bottom(cut)     _scope_rectcut_bottom(cut)
+#define texer_rectcut_top(cut)                  _texer_rectcut_top(cut)
+#define texer_rectcut_left(cut)                 _texer_rectcut_left(cut)
+#define texer_rectcut_right(cut)                _texer_rectcut_right(cut)
+#define texer_rectcut_bottom(cut)               _texer_rectcut_bottom(cut)
 
 /* drawing api */
 #define        color(...) temp = _color(temp, pixel_x, pixel_y, __VA_ARGS__)
-tex_builder_t _color(tex_builder_t tex, int pixel_x, int pixel_y, color_t color);
+texer_t _color(texer_t tex, int pixel_x, int pixel_y, color_t color);
 #define        noise(...) temp = _noise(temp, pixel_x, pixel_y, __VA_ARGS__)
-tex_builder_t _noise(tex_builder_t  tex, int pixel_x, int pixel_y, float intensity); /* TODO should take a color value */
-#define        outline(color,thick) temp = _outline(temp, pixel_x, pixel_y, color, thick); _scope_tex_rect(thick,thick,temp.mask.h-(thick*2),temp.mask.w-(thick*2)) /* TODO why do we need (thick*2) here? */
-tex_builder_t _outline(tex_builder_t tex, int pixel_x, int pixel_y, color_t color, unsigned int thickness);
+texer_t _noise(texer_t  tex, int pixel_x, int pixel_y, float intensity); /* TODO should take a color value */
+#define        outline(color,thick) temp = _outline(temp, pixel_x, pixel_y, color, thick); _texer_rect(thick,thick,temp.mask.h-(thick*2),temp.mask.w-(thick*2)) /* TODO why do we need (thick*2) here? */
+texer_t _outline(texer_t tex, int pixel_x, int pixel_y, color_t color, unsigned int thickness);
+#define        voronoi(...) temp = _voronoi(temp, pixel_x, pixel_y, ##__VA_ARGS__)
+texer_t _voronoi(texer_t tex, int pixel_x, int pixel_y, uint seed_points, uint random_seed); /* TODO should take a color value */
 /* for debugging */
 #define        pixel(...) temp = _pixel(temp, ##__VA_ARGS__) // places a pixel at the current {x,y} start
-tex_builder_t _pixel(tex_builder_t tex);
+texer_t _pixel(texer_t tex);
 
 /* called by internally by macros */
-tex_builder_t _set_mask(tex_builder_t* builder, unsigned int x, unsigned int y, unsigned int width, unsigned int height);
+texer_t _set_mask(texer_t* builder, unsigned int x, unsigned int y, unsigned int width, unsigned int height);
 
 /* helper macros */
 #define TOKEN_PASTE(a, b) a##b
@@ -140,10 +143,11 @@ static inline color_t alpha_blend(color_t src, color_t dst) {
     blend.a = 0.0f; // TODO for some reason we need to set it to 0 not see glClearColor...
     return blend;
 }
-
-static inline uint get_index(tex_builder_t texer, uint pixel_x, uint pixel_y) {
+static inline int squared_distance(int x1, int y1, int x2, int y2) { return (x1 - x2) * (x1 - x2) + (y1 - y2) * (y1 - y2); }
+static inline uint _rand(uint index) { index = (index << 13) ^ index; return ((index * (index * index * 15731 + 789221) + 1376312589) & 0x7fffffff); };
+static inline uint get_index(texer_t texer, uint pixel_x, uint pixel_y) {
     /* NOTE: a shearing effect can be implemented by doing atlas_width-{1,2,3,...} */
-    #ifdef TEX_BUILDER_FLAG_FLIP
+    #ifdef TEXER_FLAG_FLIP
     return (texer.atlas_height - pixel_y - 1) * (texer.atlas_width) + pixel_x;
     #else
     return (pixel_y * texer.atlas_width) + pixel_x;
@@ -151,36 +155,36 @@ static inline uint get_index(tex_builder_t texer, uint pixel_x, uint pixel_y) {
 }
 
 #ifndef RUN_ON_COMPUTE_SHADER
-  #define _scope_for_every_pixel(thread_id, thread_count) \
+  #define _texer_for_every_pixel(thread_id, thread_count) \
       for (int pixel_x = thread_id; pixel_x < temp.atlas_width; pixel_x += thread_count) \
           for (int pixel_y = 0; pixel_y < temp.atlas_height; pixel_y++)
 #else
   /* NOTE: in a compute shader, we only use the for loop to sneak in the values for pixel_x and pixel_y */
-  #define _scope_for_every_pixel(thread_id, thread_count) \
+  #define _texer_for_every_pixel(thread_id, thread_count) \
       for (int pixel_x = gl_GlobalInvocationID.x, pixel_y = gl_GlobalInvocationID.y, UNIQUE_VAR(i) = 0; UNIQUE_VAR(i) == 0; UNIQUE_VAR(i)++ )
 #endif
 
-#define _scope_tex_build_threaded(tex, builder, thread_id, thread_count)                   \
-    for (tex_builder_t temp = builder; temp.i == 0; (temp.i+=1, tex = _create(temp)))      \
-        _scope_for_every_pixel(thread_id, thread_count)
+#define _texer_threaded(tex, builder, thread_id, thread_count)                       \
+    for (texer_t temp = builder; temp.i == 0; (temp.i+=1, tex = _create(temp)))      \
+        _texer_for_every_pixel(thread_id, thread_count)
 
-#define _scope_tex_rect(x,y,w,h) \
-    for (tex_builder_t UNIQUE_VAR(old_builder) = _set_mask(&temp, x,y,w,h); \
+#define _texer_rect(x,y,w,h) \
+    for (texer_t UNIQUE_VAR(old_builder) = _set_mask(&temp, x,y,w,h); \
          UNIQUE_VAR(old_builder).i == 0;                                    \
          (temp = UNIQUE_VAR(old_builder), UNIQUE_VAR(old_builder).i+=1))
 
-#define _scope_rectcut_top(cut)    _scope_tex_rect(                 0,                  0, temp.mask.w,         cut)
-#define _scope_rectcut_left(cut)   _scope_tex_rect(                 0,                  0,         cut, temp.mask.h)
-#define _scope_rectcut_right(cut)  _scope_tex_rect((temp.mask.w- cut),                  0,         cut, temp.mask.h)
-#define _scope_rectcut_bottom(cut) _scope_tex_rect(                 0, (temp.mask.h- cut), temp.mask.w,         cut)
+#define _texer_rectcut_top(cut)    _texer_rect(                 0,                  0, temp.mask.w,         cut)
+#define _texer_rectcut_left(cut)   _texer_rect(                 0,                  0,         cut, temp.mask.h)
+#define _texer_rectcut_right(cut)  _texer_rect((temp.mask.w- cut),                  0,         cut, temp.mask.h)
+#define _texer_rectcut_bottom(cut) _texer_rect(                 0, (temp.mask.h- cut), temp.mask.w,         cut)
 
 /* internal */
-#ifdef TEX_BUILDER_IMPLEMENTATION
+#ifdef TEXER_IMPLEMENTATION
 #include <stdlib.h> // for malloc & rand()
 #include <math.h>   // for RAND_MAX, ...
 #include <assert.h> // TODO take in assert macro from user
 #include <time.h>   // for seeding srand()
-tex_builder_t _color(tex_builder_t tex, int pixel_x, int pixel_y, color_t color) {
+texer_t _color(texer_t tex, int pixel_x, int pixel_y, color_t color) {
     float clip = clip_to_region(tex.mask, pixel_x, pixel_y);
 
     color.r *= clip;
@@ -194,7 +198,7 @@ tex_builder_t _color(tex_builder_t tex, int pixel_x, int pixel_y, color_t color)
 
     return tex;
 }
-tex_builder_t _noise(tex_builder_t texer, int pixel_x, int pixel_y, float intensity)  {
+texer_t _noise(texer_t texer, int pixel_x, int pixel_y, float intensity)  {
     float clip = clip_to_region(texer.mask, pixel_x, pixel_y);
 
     if (!(clip > 0.0f)) { return texer; }; /* NOTE: early out is actually faster on CPUs (still needs testing with shaders)  */
@@ -217,7 +221,7 @@ tex_builder_t _noise(tex_builder_t texer, int pixel_x, int pixel_y, float intens
 
     return texer;
 }
-tex_builder_t _outline(tex_builder_t tex, int pixel_x, int pixel_y, color_t color, unsigned int thickness) {
+texer_t _outline(texer_t tex, int pixel_x, int pixel_y, color_t color, unsigned int thickness) {
     float clip = clip_to_region(tex.mask, pixel_x, pixel_y);
 
     color.r *= clip;
@@ -242,9 +246,39 @@ tex_builder_t _outline(tex_builder_t tex, int pixel_x, int pixel_y, color_t colo
 
     return tex;
 }
+texer_t _voronoi(texer_t tex, int pixel_x, int pixel_y, uint seed_points, uint random_seed) {
+    float clip = clip_to_region(tex.mask, pixel_x, pixel_y);
 
-tex_builder_t texture(int w, int h) {
-    tex_builder_t texer;
+    /* determine nearest seed point for current pixel */
+    const int  I32_MAX      = 0x7FFFFFFF;
+    const uint U32_MAX      = 4294967295;
+    int nearest_seed_index = -1;
+    int min_distance       = I32_MAX;
+    for (int i = 0; i < seed_points; i++) {
+        uint seed_point_x = tex.mask.x + _rand(random_seed+(i * seed_points)) % tex.mask.w;
+        uint seed_point_y = tex.mask.y + _rand(random_seed+(i+1)*seed_points) % tex.mask.h;
+        int distance = squared_distance(pixel_x, pixel_y, seed_point_x, seed_point_y);
+        if (distance < min_distance) {
+            min_distance = distance;
+            nearest_seed_index = i;
+        }
+    }
+
+    /* generate random color based off seed index */
+    color_t color;
+    color.r = ((float) _rand(nearest_seed_index + 0)/ (float) U32_MAX) * clip;
+    color.g = ((float) _rand(nearest_seed_index + 1)/ (float) U32_MAX) * clip;
+    color.b = ((float) _rand(nearest_seed_index + 2)/ (float) U32_MAX) * clip;
+    color.a = 1.0f * clip;
+
+    size_t index = get_index(tex, pixel_x, pixel_y);
+    tex.tex.rgb[index] = alpha_blend(color, tex.tex.rgb[index]);
+
+    return tex;
+}
+
+texer_t texture(int w, int h) {
+    texer_t texer;
 
     /* init builder */
     texer.atlas_width  = w;
@@ -266,8 +300,8 @@ tex_builder_t texture(int w, int h) {
 }
 
 /* return copy of old builder, modify current builder's mask */
-tex_builder_t _set_mask(tex_builder_t* builder, unsigned int x, unsigned int y, unsigned int width, unsigned int height) {
-    tex_builder_t old = *builder;
+texer_t _set_mask(texer_t* builder, unsigned int x, unsigned int y, unsigned int width, unsigned int height) {
+    texer_t old = *builder;
 
     builder->mask.x = CLAMP(x + builder->mask.x, builder->mask.x, builder->mask.x + builder->mask.w); // NOTE: makes it so the rect is still visible for x outside of bounds
     builder->mask.y = CLAMP(y + builder->mask.y, builder->mask.y, builder->mask.y + builder->mask.h);
@@ -295,14 +329,14 @@ tex_builder_t _set_mask(tex_builder_t* builder, unsigned int x, unsigned int y, 
     return old;
 }
 
-tex_builder_t _pixel(tex_builder_t tex) {
+texer_t _pixel(texer_t tex) {
    size_t index = get_index(tex, tex.mask.x, tex.mask.y);
    tex.tex.rgb[index] = (color_t){1,1,1,1};
    return tex;
 }
 
 /* NOTE: this is called for every single thread right now */
-texture_t _create(tex_builder_t texer) {
+texture_t _create(texer_t texer) {
     return texer.tex;
 }
 #endif

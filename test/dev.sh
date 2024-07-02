@@ -10,7 +10,7 @@ terminate_program()
 
 trap terminate_program EXIT # call on exit
 
-watched_files="test\.c|tex_builder.h"
+watched_files="test\.c|texer.h"
 
 ./build.sh
 
