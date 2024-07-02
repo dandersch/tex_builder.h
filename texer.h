@@ -52,9 +52,7 @@
 /* GLSL restrictions:
  * - no pointers
  * - no function forward declarations
- * - no size_t
- * - no 'unsigned int', only uint
- * - no '(color_t){1,1,1,1}' initialization, only 'color_t(1,1,1,1)'
+ * - no '(color_t){1,1,1,1}' initialization, only 'color_t(1,1,1,1)' -> define a ctor() macro
 */
 
 #include <stddef.h>
@@ -68,15 +66,15 @@ typedef struct texture_t texture_t;
 
 // NOTE RGBA vs BGRA layout could be set with a macro
 struct color_t       { float r; float g; float b; float a;        };
-struct texture_t     { size_t width; size_t height; color_t* rgb; };
+struct texture_t     { uint width; uint height; color_t* rgb; };
 
 /* used internally */
 typedef struct texer_t {
     texture_t tex;
 
     /* size of the whole texture NOTE: same as tex.{width,height} */
-    size_t atlas_width;
-    size_t atlas_height;
+    uint atlas_width;
+    uint atlas_height;
 
     // int flags; // TODO bitfield containing e.g. TEX_BUILD_{FLIP,MIRROR,BLEND_ALPHA}
 
@@ -117,7 +115,7 @@ texer_t _color(texer_t tex, int pixel_x, int pixel_y, color_t color);
 #define        noise(...) temp = _noise(temp, pixel_x, pixel_y, __VA_ARGS__)
 texer_t _noise(texer_t  tex, int pixel_x, int pixel_y, float intensity); /* TODO should take a color value */
 #define        outline(color,thick) temp = _outline(temp, pixel_x, pixel_y, color, thick); _texer_rect(thick,thick,temp.mask.h-(thick*2),temp.mask.w-(thick*2)) /* TODO why do we need (thick*2) here? */
-texer_t _outline(texer_t tex, int pixel_x, int pixel_y, color_t color, unsigned int thickness);
+texer_t _outline(texer_t tex, int pixel_x, int pixel_y, color_t color, uint thickness);
 #define        voronoi(...) temp = _voronoi(temp, pixel_x, pixel_y, ##__VA_ARGS__)
 texer_t _voronoi(texer_t tex, int pixel_x, int pixel_y, uint seed_points); /* TODO should take a color value */
 /* for debugging */
@@ -125,7 +123,7 @@ texer_t _voronoi(texer_t tex, int pixel_x, int pixel_y, uint seed_points); /* TO
 texer_t _pixel(texer_t tex);
 
 /* called by internally by macros */
-texer_t _set_mask(texer_t* builder, unsigned int x, unsigned int y, unsigned int width, unsigned int height);
+texer_t _set_mask(texer_t* builder, uint x, uint y, uint width, uint height);
 
 /* helper macros */
 #define TOKEN_PASTE(a, b) a##b
@@ -197,7 +195,7 @@ texer_t _color(texer_t tex, int pixel_x, int pixel_y, color_t color) {
     color.a *= clip;
 
     /* color the subtexture */
-    size_t index = get_index(tex, pixel_x, pixel_y);
+    uint index = get_index(tex, pixel_x, pixel_y);
     tex.tex.rgb[index] = alpha_blend(color, tex.tex.rgb[index]);
 
     return tex;
@@ -207,7 +205,7 @@ texer_t _noise(texer_t tex, int pixel_x, int pixel_y, float intensity)  {
 
     if (!(clip > 0.0f)) { return tex; }; /* NOTE: early out is actually faster on CPUs (still needs testing with shaders)  */
 
-    size_t idx = get_index(tex, pixel_x, pixel_y);
+    uint idx = get_index(tex, pixel_x, pixel_y);
     color_t noise;
 
     /* Add noise to each color component based on intensity */
@@ -231,7 +229,7 @@ texer_t _noise(texer_t tex, int pixel_x, int pixel_y, float intensity)  {
 
     return tex;
 }
-texer_t _outline(texer_t tex, int pixel_x, int pixel_y, color_t color, unsigned int thickness) {
+texer_t _outline(texer_t tex, int pixel_x, int pixel_y, color_t color, uint thickness) {
     float clip = clip_to_region(tex.mask, pixel_x, pixel_y);
 
     color.r *= clip;
@@ -239,7 +237,7 @@ texer_t _outline(texer_t tex, int pixel_x, int pixel_y, color_t color, unsigned 
     color.b *= clip;
     color.a *= clip;
 
-    size_t index = get_index(tex, pixel_x, pixel_y);
+    uint index = get_index(tex, pixel_x, pixel_y);
 
     /* TODO remove if statements */
     /* top side */
@@ -279,7 +277,7 @@ texer_t _voronoi(texer_t tex, int pixel_x, int pixel_y, uint seed_points) {
     color.b = ((float) _rand(nearest_seed_index + 2)/ (float) U32_MAX) * clip;
     color.a = 1.0f * clip;
 
-    size_t index = get_index(tex, pixel_x, pixel_y);
+    uint index = get_index(tex, pixel_x, pixel_y);
     tex.tex.rgb[index] = alpha_blend(color, tex.tex.rgb[index]);
 
     return tex;
@@ -308,7 +306,7 @@ texer_t texture(int w, int h) {
 }
 
 /* return copy of old builder, modify current builder's mask */
-texer_t _set_mask(texer_t* builder, unsigned int x, unsigned int y, unsigned int width, unsigned int height) {
+texer_t _set_mask(texer_t* builder, uint x, uint y, uint width, uint height) {
     texer_t old = *builder;
 
     builder->mask.x = CLAMP(x + builder->mask.x, builder->mask.x, builder->mask.x + builder->mask.w); // NOTE: makes it so the rect is still visible for x outside of bounds
@@ -338,7 +336,7 @@ texer_t _set_mask(texer_t* builder, unsigned int x, unsigned int y, unsigned int
 }
 
 texer_t _pixel(texer_t tex) {
-   size_t index = get_index(tex, tex.mask.x, tex.mask.y);
+   uint index = get_index(tex, tex.mask.x, tex.mask.y);
    tex.tex.rgb[index] = (color_t){1,1,1,1};
    return tex;
 }
