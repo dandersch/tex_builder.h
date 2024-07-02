@@ -1,0 +1,5 @@
+#+title: Texer
+
+A single-header C/C++ procedural texture generation library with an
+immediate-mode API. It can run on the CPU or be integrated into a GLSL compute
+shader.

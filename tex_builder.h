@@ -151,13 +151,13 @@ static inline uint get_index(tex_builder_t texer, uint pixel_x, uint pixel_y) {
 }
 
 #ifndef RUN_ON_COMPUTE_SHADER
-#define _scope_for_every_pixel(thread_id, thread_count) \
-    for (int pixel_x = thread_id; pixel_x < temp.atlas_width; pixel_x += thread_count) \
-        for (int pixel_y = 0; pixel_y < temp.atlas_height; pixel_y++)
+  #define _scope_for_every_pixel(thread_id, thread_count) \
+      for (int pixel_x = thread_id; pixel_x < temp.atlas_width; pixel_x += thread_count) \
+          for (int pixel_y = 0; pixel_y < temp.atlas_height; pixel_y++)
 #else
-/* NOTE: in a compute shader, we only use the for loop to sneak in the values for pixel_x and pixel_y */
-#define _scope_for_every_pixel(thread_id, thread_count) \
-    for (int pixel_x = gl_GlobalInvocationID.x, pixel_y = gl_GlobalInvocationID.y, UNIQUE_VAR(i) = 0; UNIQUE_VAR(i) == 0; UNIQUE_VAR(i)++ )
+  /* NOTE: in a compute shader, we only use the for loop to sneak in the values for pixel_x and pixel_y */
+  #define _scope_for_every_pixel(thread_id, thread_count) \
+      for (int pixel_x = gl_GlobalInvocationID.x, pixel_y = gl_GlobalInvocationID.y, UNIQUE_VAR(i) = 0; UNIQUE_VAR(i) == 0; UNIQUE_VAR(i)++ )
 #endif
 
 #define _scope_tex_build_threaded(tex, builder, thread_id, thread_count)                   \
@@ -169,7 +169,6 @@ static inline uint get_index(tex_builder_t texer, uint pixel_x, uint pixel_y) {
          UNIQUE_VAR(old_builder).i == 0;                                    \
          (temp = UNIQUE_VAR(old_builder), UNIQUE_VAR(old_builder).i+=1))
 
-/* TODO test again */
 #define _scope_rectcut_top(cut)    _scope_tex_rect(                 0,                  0, temp.mask.w,         cut)
 #define _scope_rectcut_left(cut)   _scope_tex_rect(                 0,                  0,         cut, temp.mask.h)
 #define _scope_rectcut_right(cut)  _scope_tex_rect((temp.mask.w- cut),                  0,         cut, temp.mask.h)
@@ -182,7 +181,6 @@ static inline uint get_index(tex_builder_t texer, uint pixel_x, uint pixel_y) {
 #include <assert.h> // TODO take in assert macro from user
 #include <time.h>   // for seeding srand()
 tex_builder_t _color(tex_builder_t tex, int pixel_x, int pixel_y, color_t color) {
-    //float clip = step(tex.mask.x, pixel_x) * step(pixel_x, tex.mask.x + tex.mask.w-1) * step(tex.mask.y, pixel_y) * step(pixel_y, tex.mask.y + tex.mask.h-1);
     float clip = clip_to_region(tex.mask, pixel_x, pixel_y);
 
     color.r *= clip;
@@ -196,9 +194,7 @@ tex_builder_t _color(tex_builder_t tex, int pixel_x, int pixel_y, color_t color)
 
     return tex;
 }
-
 tex_builder_t _noise(tex_builder_t texer, int pixel_x, int pixel_y, float intensity)  {
-    //float clip = step(texer.mask.x, pixel_x) * step(pixel_x, texer.mask.x + texer.mask.w) * step(texer.mask.y, pixel_y) * step(pixel_y, texer.mask.y + texer.mask.h);
     float clip = clip_to_region(texer.mask, pixel_x, pixel_y);
 
     if (!(clip > 0.0f)) { return texer; }; /* NOTE: early out is actually faster on CPUs (still needs testing with shaders)  */
@@ -232,7 +228,6 @@ tex_builder_t _outline(tex_builder_t tex, int pixel_x, int pixel_y, color_t colo
     size_t index = get_index(tex, pixel_x, pixel_y);
 
     /* TODO remove if statements */
-
     /* top side */
     if (pixel_y < tex.mask.y + thickness) { tex.tex.rgb[index] = alpha_blend(color, tex.tex.rgb[index]); }
 
