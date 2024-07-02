@@ -111,8 +111,8 @@ tex_builder_t texture(int w, int h);
 tex_builder_t _color(tex_builder_t tex, int pixel_x, int pixel_y, color_t color);
 #define        noise(...) temp = _noise(temp, pixel_x, pixel_y, __VA_ARGS__)
 tex_builder_t _noise(tex_builder_t  tex, int pixel_x, int pixel_y, float intensity); /* TODO should take a color value */
-#define        outline(color,thick) temp = _outline(temp, color, thick); _scope_tex_rect(thick,thick,temp.height-(thick*2),temp.width-(thick*2)) /* TODO why do we need (thick*2) here? */
-tex_builder_t _outline(tex_builder_t tex, color_t color, unsigned int thickness);
+#define        outline(color,thick) temp = _outline(temp, pixel_x, pixel_y, color, thick); _scope_tex_rect(thick,thick,temp.mask.h-(thick*2),temp.mask.w-(thick*2)) /* TODO why do we need (thick*2) here? */
+tex_builder_t _outline(tex_builder_t tex, int pixel_x, int pixel_y, color_t color, unsigned int thickness);
 /* for debugging */
 #define        pixel(...) temp = _pixel(temp, ##__VA_ARGS__) // places a pixel at the current {x,y} start
 tex_builder_t _pixel(tex_builder_t tex);
@@ -170,10 +170,10 @@ static inline uint get_index(tex_builder_t texer, uint pixel_x, uint pixel_y) {
          (temp = UNIQUE_VAR(old_builder), UNIQUE_VAR(old_builder).i+=1))
 
 /* TODO test again */
-#define _scope_rectcut_top(cut)    _scope_tex_rect(0, 0, cut, temp.width)
-#define _scope_rectcut_left(cut)   _scope_tex_rect(0, 0, temp.height, cut)
-#define _scope_rectcut_right(cut)  _scope_tex_rect((temp.width - cut), 0, temp.height, cut)
-#define _scope_rectcut_bottom(cut) _scope_tex_rect(0, (temp.height - cut), cut, temp.width)
+#define _scope_rectcut_top(cut)    _scope_tex_rect(                 0,                  0, temp.mask.w,         cut)
+#define _scope_rectcut_left(cut)   _scope_tex_rect(                 0,                  0,         cut, temp.mask.h)
+#define _scope_rectcut_right(cut)  _scope_tex_rect((temp.mask.w- cut),                  0,         cut, temp.mask.h)
+#define _scope_rectcut_bottom(cut) _scope_tex_rect(                 0, (temp.mask.h- cut), temp.mask.w,         cut)
 
 /* internal */
 #ifdef TEX_BUILDER_IMPLEMENTATION
@@ -221,26 +221,29 @@ tex_builder_t _noise(tex_builder_t texer, int pixel_x, int pixel_y, float intens
 
     return texer;
 }
-tex_builder_t _outline(tex_builder_t tex, color_t color, unsigned int thickness) {
-    int x, y;
+tex_builder_t _outline(tex_builder_t tex, int pixel_x, int pixel_y, color_t color, unsigned int thickness) {
+    float clip = clip_to_region(tex.mask, pixel_x, pixel_y);
 
-    //for (x = tex.x_start; x < tex.x_start + tex.width; x++) {
-    //    for (y = tex.y_start; y < tex.y_start + thickness; y++) {
-    //        tex.tex.rgb[y * tex.tex.width + x] = color; /* top side */
-    //    }
-    //    for (y = tex.y_start + tex.height - thickness; y < tex.y_start + tex.height; y++) {
-    //        tex.tex.rgb[y * tex.tex.width + x] = color; /* bottom side */
-    //    }
-    //}
+    color.r *= clip;
+    color.g *= clip;
+    color.b *= clip;
+    color.a *= clip;
 
-    //for (y = tex.y_start + thickness; y < tex.y_start + tex.height - thickness; y++) {
-    //    for (x = tex.x_start; x < tex.x_start + thickness; x++) {
-    //        tex.tex.rgb[y * tex.tex.width + x] = color; /* left side */
-    //    }
-    //    for (x = tex.x_start + tex.width - thickness; x < tex.x_start + tex.width; x++) {
-    //        tex.tex.rgb[y * tex.tex.width + x] = color; /* right side */
-    //    }
-    //}
+    size_t index = get_index(tex, pixel_x, pixel_y);
+
+    /* TODO remove if statements */
+
+    /* top side */
+    if (pixel_y < tex.mask.y + thickness) { tex.tex.rgb[index] = alpha_blend(color, tex.tex.rgb[index]); }
+
+    /* bottom side */
+    if (pixel_y >= tex.mask.y + tex.mask.h - thickness) { tex.tex.rgb[index] = alpha_blend(color, tex.tex.rgb[index]); }
+
+    /* left side */
+    if (pixel_x < tex.mask.x + thickness) { tex.tex.rgb[index] = alpha_blend(color, tex.tex.rgb[index]); }
+
+    /* right side */
+    if (pixel_x >= tex.mask.x + tex.mask.w - thickness) { tex.tex.rgb[index] = alpha_blend(color, tex.tex.rgb[index]); }
 
     return tex;
 }

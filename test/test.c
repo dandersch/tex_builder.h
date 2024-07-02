@@ -29,96 +29,113 @@ __attribute__((visibility("default"))) int alloc_texture(state_t* state) {
 }
 
 #define lerp(t, a, b) (a + t * (b - a))
+static float timer = 0;
 
 typedef struct thread_t { pthread_t id; int nr; int count; texture_t* tex; tex_builder_t builder; } thread_t;
 void* tex_build(void* args)
 {
+    float zero_to_one = (sinf(timer) + 1)/2;
+    color_t _COLOR  = {zero_to_one,0,0.4,1};
+
     thread_t* t = (thread_t*) args;
-    _scope_tex_build_threaded(*t->tex, t->builder, t->nr, t->count)
-    {
-        color(BLACK);
-        scope_tex_rect(0,0,16,16) {
-            color(BLUE);
-            pixel();
-            if(0)scope_tex_rect(1,1,4,4) {
-                pixel();
+    _scope_tex_build_threaded(*t->tex, t->builder, t->nr, t->count) {
+        color(NONE);
+
+        /* creeper face */
+        scope_tex_rect(0,0,32,32)   {
+            color(GREEN);
+            noise(1.0);
+            scope_tex_rect(4,8,8,8) {
+                color(BLACK);
+                scope_tex_rect(2,2,4,4) {
+                    color(_COLOR);
+                }
+            }
+            scope_tex_rect(20,8,8,8) {
+                color(BLACK);
+                scope_tex_rect(2,2,4,4) {
+                    color(_COLOR);
+                }
+            }
+            scope_tex_rect(12,16,8,16) { color(BLACK); }
+            scope_tex_rect(8,20,16,16) { color(BLACK); }
+            scope_tex_rect(12,(int) lerp(zero_to_one, 28, 33), 8,16)  { color(GREEN); noise(1.0); } // NOTE: not properly cut off
+        }
+
+        /* sliding door */
+        scope_tex_rect(32,0,32,32)  {
+            color(BLACK);
+            scope_rectcut_left((int) lerp(zero_to_one, 18, 0))
+            {
                 color(GRAY);
+                noise(0.3);
+                scope_rectcut_right(3) {
+                  color((color_t){0.2,0.3,0.5,1});
+                }
+            }
+            scope_rectcut_right((int) lerp(zero_to_one, 18, 0)) {
+                color(GRAY);
+                noise(0.3);
+                scope_rectcut_left(3) {
+                  color((color_t){0.2,0.5,0.5,1});
+                }
             }
         }
-        if(1) scope_tex_rect(16,0,3,3) {
-            color(RED);
-            pixel();
-            if(0)scope_tex_rect(0,0,30,30) {
-                color(RED);
-                noise(0.8);
-                pixel();
-            }
-        }
-        if(1) scope_tex_rect(32,0,32,32) {
-            color(GREEN);
-            pixel();
-            scope_tex_rect(0,0,16,16) {
-                color(RED);
-                noise(0.8);
-                pixel();
-            }
-        }
-        if(1) scope_tex_rect(64,0,32,32) {
-            color(GREEN);
-            pixel();
-            scope_tex_rect(0,16,16,16) {
-                color(RED);
-                noise(0.8);
-                pixel();
-            }
-        }
-        if(1) scope_tex_rect(0,32,32,32) {
-            color(GREEN);
-            pixel();
-            scope_tex_rect(0,16,16,16) {
-                color(RED);
-                pixel();
-            }
-        }
-        if(1) scope_tex_rect(0,64,32,32) {
+
+        /* pong animation */
+        scope_tex_rect(64,0,32,32)  {
             color(GRAY);
-            pixel();
-            scope_tex_rect(0,16,16,16) {
-                color(RED);
-                pixel();
+            noise(0.1);
+
+            scope_tex_rect(lerp(zero_to_one,2,28),lerp(zero_to_one,3,28),3,3) { color(WHITE); }
+            scope_rectcut_left(2)  {
+                scope_tex_rect(0, lerp(zero_to_one,0,25),2,8) color(WHITE);
+            }
+            scope_rectcut_right(2) {
+                scope_tex_rect(0, lerp(zero_to_one,0,25),2,8) color(WHITE);
             }
         }
-        if(1) scope_tex_rect(64,64,32,32) {
-            color(YELLOW);
-            pixel();
-            scope_tex_rect(0,16,16,16) {
-                color(RED);
-                pixel();
+
+        /* zoom-in */
+        scope_tex_rect(0,32,32,32)  {
+            color(BLUE);
+            unsigned int t_ = zero_to_one * 4;
+            outline(RED, t_) {
+                outline(GRAY,t_) {
+                    outline(YELLOW,t_) {
+                        outline(CYAN,t_) {
+                            outline(GREEN,t_) {
+                            }
+                        }
+                    }
+                }
             }
         }
-        if(1) scope_tex_rect(32,64,32,32) {
-            color(GREEN);
-            pixel();
-            scope_tex_rect(0,16,16,16) {
-                color(RED);
-                pixel();
+
+        /* testing clamping */
+        scope_tex_rect(32,32,32,32) {
+            color(BLACK);
+            scope_tex_rect(0, (int) lerp(zero_to_one, 0, 33),32,32) {
+                color(ORANGE);
+                scope_rectcut_left(10)  { color(YELLOW); }
+                scope_rectcut_right(10) { color(YELLOW); }
+                scope_rectcut_top(5)    { color(ORANGE); }
             }
         }
-        if(1) scope_tex_rect(64,32,32,32) {
-            color(YELLOW);
-            pixel();
-            scope_tex_rect(0,16,16,16) {
-                color(RED);
-                pixel();
-            }
+
+        scope_tex_rect(64,32,32,32) {
+            color(GRAY);
+            outline(RED, 2) {}
         }
-        if(1) scope_tex_rect(32,32,32,32) {
-            color(GREEN);
-            pixel();
-            scope_tex_rect(8,8,28,29) {
-                color(RED);
-                noise(0.8);
-                pixel();
+
+        /* using for loops for generating */
+        for (int i = 0; i < 3; i++) {
+            scope_tex_rect(32 * i,64,32,32) {
+                switch (i) {
+                    case 0: { color(YELLOW);  } break;
+                    case 1: { color(MAGENTA); } break;
+                    case 2: { color(CYAN);    } break;
+                }
             }
         }
     }
@@ -129,9 +146,7 @@ void* tex_build(void* args)
 #include <pthread.h>
 __attribute__((visibility("default"))) int generate_textures(state_t* state, float dt) {
     /* animation test */
-    static float timer = 0; timer += dt;
-    float zero_to_one = (sinf(timer) + 1)/2;
-    color_t _COLOR  = {zero_to_one,0,0.4,1};
+    timer += dt;
 
     /* reset srand() */
     //static unsigned int random = 0;
