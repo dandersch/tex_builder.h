@@ -159,7 +159,7 @@ int main(int argc, char* args[])
     /* sdl initialization boilerplate */
     {
         if (SDL_Init(SDL_INIT_VIDEO) < 0) { fprintf(stderr, "Failed to initialize SDL: %s\n", SDL_GetError()); return -1; }
-        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 4);
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_DEBUG_FLAG); // only for 4.3+
@@ -185,8 +185,8 @@ int main(int argc, char* args[])
         glewExperimental = GL_TRUE;
         if (glewInit() != GLEW_OK) { fprintf(stderr, "Failed to initialize GLEW\n"); return -1; }
 
-        glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
-        glDebugMessageCallback(gl_debug_callback, NULL);
+        //glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
+        //glDebugMessageCallback(gl_debug_callback, NULL);
 
         /* generate and bind vertex array object and vertex buffer object */
         glGenVertexArrays(1, &VAO);

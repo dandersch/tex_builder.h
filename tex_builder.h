@@ -82,7 +82,7 @@ typedef struct tex_builder_t {
     struct {
         int x, y;
         int w, h;
-    } mask;
+    } mask; // TODO rename to clipping_region
 
     /* used in for-loop macros */
     int i;
@@ -130,6 +130,8 @@ tex_builder_t _set_mask(tex_builder_t* builder, unsigned int x, unsigned int y, 
 
 /* helper functions */
 static inline float step(float edge, float x) { return x >= edge ? 1.0f : 0.0f; }
+/* TODO convert to function */
+#define clip_to_region(mask, px, py) (step(mask.x, px) * step(px, mask.x + mask.w-1) * step(mask.y, py) * step(py, mask.y + mask.h-1))
 static inline color_t alpha_blend(color_t src, color_t dst) {
     color_t blend;
     blend.r = CLAMP(src.r * src.a + dst.r * (1.0f - src.a), 0.0f, 1.0f);
@@ -140,6 +142,7 @@ static inline color_t alpha_blend(color_t src, color_t dst) {
 }
 
 static inline uint get_index(tex_builder_t texer, uint pixel_x, uint pixel_y) {
+    /* NOTE: a shearing effect can be implemented by doing atlas_width-{1,2,3,...} */
     #ifdef TEX_BUILDER_FLAG_FLIP
     return (texer.atlas_height - pixel_y - 1) * (texer.atlas_width) + pixel_x;
     #else
@@ -179,7 +182,8 @@ static inline uint get_index(tex_builder_t texer, uint pixel_x, uint pixel_y) {
 #include <assert.h> // TODO take in assert macro from user
 #include <time.h>   // for seeding srand()
 tex_builder_t _color(tex_builder_t tex, int pixel_x, int pixel_y, color_t color) {
-    float clip = step(tex.mask.x, pixel_x) * step(pixel_x, tex.mask.x + tex.mask.w) * step(tex.mask.y, pixel_y) * step(pixel_y, tex.mask.y + tex.mask.h);
+    //float clip = step(tex.mask.x, pixel_x) * step(pixel_x, tex.mask.x + tex.mask.w-1) * step(tex.mask.y, pixel_y) * step(pixel_y, tex.mask.y + tex.mask.h-1);
+    float clip = clip_to_region(tex.mask, pixel_x, pixel_y);
 
     color.r *= clip;
     color.g *= clip;
@@ -194,7 +198,8 @@ tex_builder_t _color(tex_builder_t tex, int pixel_x, int pixel_y, color_t color)
 }
 
 tex_builder_t _noise(tex_builder_t texer, int pixel_x, int pixel_y, float intensity)  {
-    float clip = step(texer.mask.x, pixel_x) * step(pixel_x, texer.mask.x + texer.mask.w) * step(texer.mask.y, pixel_y) * step(pixel_y, texer.mask.y + texer.mask.h);
+    //float clip = step(texer.mask.x, pixel_x) * step(pixel_x, texer.mask.x + texer.mask.w) * step(texer.mask.y, pixel_y) * step(pixel_y, texer.mask.y + texer.mask.h);
+    float clip = clip_to_region(texer.mask, pixel_x, pixel_y);
 
     if (!(clip > 0.0f)) { return texer; }; /* NOTE: early out is actually faster on CPUs (still needs testing with shaders)  */
 
@@ -269,10 +274,25 @@ tex_builder_t _set_mask(tex_builder_t* builder, unsigned int x, unsigned int y, 
     builder->mask.x = CLAMP(x + builder->mask.x, builder->mask.x, builder->mask.x + builder->mask.w); // NOTE: makes it so the rect is still visible for x outside of bounds
     builder->mask.y = CLAMP(y + builder->mask.y, builder->mask.y, builder->mask.y + builder->mask.h);
 
-    /* TODO clamp w,h properly */
+    /* clamp width and height */
+
+    /* first case: rectangle is past clipping region  */
+    if (old.mask.x + x + width  > old.mask.x + old.mask.w) { width  -= (old.mask.x + x + width)  - (old.mask.x + old.mask.w); }
+    if (old.mask.y + y + height > old.mask.y + old.mask.h) { height -= (old.mask.y + y + height) - (old.mask.y + old.mask.h); }
+
+    /* second case: rectangle is before clipping region  */
+    /* NOTE: not yet possible because x/y is unsigned, but we might want to change them to signed ints */
+    if (x < 0) { width  = (old.mask.x + old.mask.w) - (old.mask.x + x + width);  }
+    if (y < 0) { height = (old.mask.y + old.mask.h) - (old.mask.y + y + height); }
+
+    /* third case: rectangle is inside clipping region  */
+    // nothing needs to be done here
+
     /* TODO we are off by one pixel if we don't do -1 here, find out why & and if this was the case before the rewrite */
-    builder->mask.w = min(width - 1, builder->mask.w);
-    builder->mask.h = min(height- 1, builder->mask.h);
+    //builder->mask.w = min(width - 1, builder->mask.w);
+    //builder->mask.h = min(height- 1, builder->mask.h);
+    builder->mask.w = width  ;
+    builder->mask.h = height ;
 
     return old;
 }

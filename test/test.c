@@ -36,27 +36,34 @@ void* tex_build(void* args)
     thread_t* t = (thread_t*) args;
     _scope_tex_build_threaded(*t->tex, t->builder, t->nr, t->count)
     {
-        color(GRAY);
-        pixel();
-        scope_tex_rect(8,8,4,4) {
+        color(BLACK);
+        scope_tex_rect(0,0,16,16) {
             color(BLUE);
             pixel();
+            if(0)scope_tex_rect(1,1,4,4) {
+                pixel();
+                color(GRAY);
+            }
+        }
+        if(1) scope_tex_rect(16,0,3,3) {
+            color(RED);
+            pixel();
+            if(0)scope_tex_rect(0,0,30,30) {
+                color(RED);
+                noise(0.8);
+                pixel();
+            }
+        }
+        if(1) scope_tex_rect(32,0,32,32) {
+            color(GREEN);
+            pixel();
             scope_tex_rect(0,0,16,16) {
                 color(RED);
                 noise(0.8);
                 pixel();
             }
         }
-        scope_tex_rect(32,0,32,32) {
-            color(GREEN);
-            pixel();
-            scope_tex_rect(0,0,16,16) {
-                color(RED);
-                noise(0.8);
-                pixel();
-            }
-        }
-        scope_tex_rect(64,0,32,32) {
+        if(1) scope_tex_rect(64,0,32,32) {
             color(GREEN);
             pixel();
             scope_tex_rect(0,16,16,16) {
@@ -65,7 +72,7 @@ void* tex_build(void* args)
                 pixel();
             }
         }
-        scope_tex_rect(0,32,32,32) {
+        if(1) scope_tex_rect(0,32,32,32) {
             color(GREEN);
             pixel();
             scope_tex_rect(0,16,16,16) {
@@ -73,7 +80,15 @@ void* tex_build(void* args)
                 pixel();
             }
         }
-        scope_tex_rect(0,64,32,32) {
+        if(1) scope_tex_rect(0,64,32,32) {
+            color(GRAY);
+            pixel();
+            scope_tex_rect(0,16,16,16) {
+                color(RED);
+                pixel();
+            }
+        }
+        if(1) scope_tex_rect(64,64,32,32) {
             color(YELLOW);
             pixel();
             scope_tex_rect(0,16,16,16) {
@@ -81,15 +96,7 @@ void* tex_build(void* args)
                 pixel();
             }
         }
-        scope_tex_rect(64,64,32,32) {
-            color(YELLOW);
-            pixel();
-            scope_tex_rect(0,16,16,16) {
-                color(RED);
-                pixel();
-            }
-        }
-        scope_tex_rect(32,64,32,32) {
+        if(1) scope_tex_rect(32,64,32,32) {
             color(GREEN);
             pixel();
             scope_tex_rect(0,16,16,16) {
@@ -97,7 +104,7 @@ void* tex_build(void* args)
                 pixel();
             }
         }
-        scope_tex_rect(64,32,32,32) {
+        if(1) scope_tex_rect(64,32,32,32) {
             color(YELLOW);
             pixel();
             scope_tex_rect(0,16,16,16) {
@@ -105,10 +112,10 @@ void* tex_build(void* args)
                 pixel();
             }
         }
-        scope_tex_rect(32,32,32,32) {
+        if(1) scope_tex_rect(32,32,32,32) {
             color(GREEN);
             pixel();
-            scope_tex_rect(8,8,24,33) {
+            scope_tex_rect(8,8,28,29) {
                 color(RED);
                 noise(0.8);
                 pixel();
