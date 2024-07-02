@@ -16,11 +16,12 @@
  *   blend:  blend two textures together with a specified blending mode (e.g., alpha blending, additive blending)
  *
  * drawing operations:
- *   line:    draw a line segment between two points with a color
- *   voronoi: draw a voronoi pattern with an outline color
- *   rotate:  rotate the texture by a specified angle around a pivot point.
- *   text:    draw string with font at position with size or fit the rect
- *   resize:  resize the texture to a new width and height using interpolation (e.g., bilinear interpolation).
+ *   line:     draw a line segment between two points with a color
+ *   voronoi:  draw a voronoi pattern with an outline color
+ *   rotate:   rotate the texture by a specified angle around a pivot point.
+ *   text:     draw string with font at position with size or fit the rect
+ *   resize:   resize the texture to a new width and height using interpolation (e.g., bilinear interpolation).
+ *   gradient: gradient version of color()
  *
  * scopes:
  *   scope_centered(): draw everything at the center
@@ -79,6 +80,8 @@ typedef struct texer_t {
 
     // int flags; // TODO bitfield containing e.g. TEX_BUILD_{FLIP,MIRROR,BLEND_ALPHA}
 
+    uint seed; /* random seed that will be used by noise, voronoi, etc. */
+
     struct {
         int x, y;
         int w, h;
@@ -110,12 +113,13 @@ texer_t texture(int w, int h);
 /* drawing api */
 #define        color(...) temp = _color(temp, pixel_x, pixel_y, __VA_ARGS__)
 texer_t _color(texer_t tex, int pixel_x, int pixel_y, color_t color);
+#define        seed(nr)   temp.seed = nr
 #define        noise(...) temp = _noise(temp, pixel_x, pixel_y, __VA_ARGS__)
 texer_t _noise(texer_t  tex, int pixel_x, int pixel_y, float intensity); /* TODO should take a color value */
 #define        outline(color,thick) temp = _outline(temp, pixel_x, pixel_y, color, thick); _texer_rect(thick,thick,temp.mask.h-(thick*2),temp.mask.w-(thick*2)) /* TODO why do we need (thick*2) here? */
 texer_t _outline(texer_t tex, int pixel_x, int pixel_y, color_t color, unsigned int thickness);
 #define        voronoi(...) temp = _voronoi(temp, pixel_x, pixel_y, ##__VA_ARGS__)
-texer_t _voronoi(texer_t tex, int pixel_x, int pixel_y, uint seed_points, uint random_seed); /* TODO should take a color value */
+texer_t _voronoi(texer_t tex, int pixel_x, int pixel_y, uint seed_points); /* TODO should take a color value */
 /* for debugging */
 #define        pixel(...) temp = _pixel(temp, ##__VA_ARGS__) // places a pixel at the current {x,y} start
 texer_t _pixel(texer_t tex);
@@ -144,6 +148,8 @@ static inline color_t alpha_blend(color_t src, color_t dst) {
     return blend;
 }
 static inline int squared_distance(int x1, int y1, int x2, int y2) { return (x1 - x2) * (x1 - x2) + (y1 - y2) * (y1 - y2); }
+const int  I32_MAX      = 0x7FFFFFFF;
+const uint U32_MAX      = 4294967295;
 static inline uint _rand(uint index) { index = (index << 13) ^ index; return ((index * (index * index * 15731 + 789221) + 1376312589) & 0x7fffffff); };
 static inline uint get_index(texer_t texer, uint pixel_x, uint pixel_y) {
     /* NOTE: a shearing effect can be implemented by doing atlas_width-{1,2,3,...} */
@@ -180,10 +186,8 @@ static inline uint get_index(texer_t texer, uint pixel_x, uint pixel_y) {
 
 /* internal */
 #ifdef TEXER_IMPLEMENTATION
-#include <stdlib.h> // for malloc & rand()
-#include <math.h>   // for RAND_MAX, ...
+#include <stdlib.h> // for malloc
 #include <assert.h> // TODO take in assert macro from user
-#include <time.h>   // for seeding srand()
 texer_t _color(texer_t tex, int pixel_x, int pixel_y, color_t color) {
     float clip = clip_to_region(tex.mask, pixel_x, pixel_y);
 
@@ -198,28 +202,34 @@ texer_t _color(texer_t tex, int pixel_x, int pixel_y, color_t color) {
 
     return tex;
 }
-texer_t _noise(texer_t texer, int pixel_x, int pixel_y, float intensity)  {
-    float clip = clip_to_region(texer.mask, pixel_x, pixel_y);
+texer_t _noise(texer_t tex, int pixel_x, int pixel_y, float intensity)  {
+    float clip = clip_to_region(tex.mask, pixel_x, pixel_y);
 
-    if (!(clip > 0.0f)) { return texer; }; /* NOTE: early out is actually faster on CPUs (still needs testing with shaders)  */
+    if (!(clip > 0.0f)) { return tex; }; /* NOTE: early out is actually faster on CPUs (still needs testing with shaders)  */
 
-    size_t idx = get_index(texer, pixel_x, pixel_y);
+    size_t idx = get_index(tex, pixel_x, pixel_y);
     color_t noise;
 
     /* Add noise to each color component based on intensity */
-    noise.r = texer.tex.rgb[idx].r + intensity * ((float)rand() / (float) RAND_MAX - 0.5f);
-    noise.g = texer.tex.rgb[idx].g + intensity * ((float)rand() / (float) RAND_MAX - 0.5f);
-    noise.b = texer.tex.rgb[idx].b + intensity * ((float)rand() / (float) RAND_MAX - 0.5f);
+    // TODO better pseudo random number generation
+    noise.r = tex.tex.rgb[idx].r + intensity * ((float)_rand(tex.seed+pixel_x+pixel_y)/(float) U32_MAX - 0.5f);
+    noise.g = tex.tex.rgb[idx].g + intensity * ((float)_rand(tex.seed+pixel_x+pixel_y)/(float) U32_MAX - 0.5f);
+    noise.b = tex.tex.rgb[idx].b + intensity * ((float)_rand(tex.seed+pixel_x+pixel_y)/(float) U32_MAX - 0.5f);
+
+    /* NOTE: sheared stripes pattern, could be nice to have as a drawing operation */
+    //noise.r = tex.tex.rgb[idx].r + intensity * ((float)_rand(tex.seed+pixel_x+pixel_y)/(float) U32_MAX - 0.5f);
+    //noise.g = tex.tex.rgb[idx].g + intensity * ((float)_rand(tex.seed+pixel_x+pixel_y)/(float) U32_MAX - 0.5f);
+    //noise.b = tex.tex.rgb[idx].b + intensity * ((float)_rand(tex.seed+pixel_x+pixel_y)/(float) U32_MAX - 0.5f);
 
     /* clamp colors to [0, 1] and clip if needed */
-    noise.r = (fminf(fmaxf(noise.r, 0.0f), 1.0f) * clip);
-    noise.g = (fminf(fmaxf(noise.g, 0.0f), 1.0f) * clip);
-    noise.b = (fminf(fmaxf(noise.b, 0.0f), 1.0f) * clip);
+    noise.r = CLAMP(noise.r, 0.0f, 1.0f) * clip;
+    noise.g = CLAMP(noise.g, 0.0f, 1.0f) * clip;
+    noise.b = CLAMP(noise.b, 0.0f, 1.0f) * clip;
     noise.a = clip;
 
-    texer.tex.rgb[idx] = alpha_blend(noise, texer.tex.rgb[idx]);
+    tex.tex.rgb[idx] = alpha_blend(noise, tex.tex.rgb[idx]);
 
-    return texer;
+    return tex;
 }
 texer_t _outline(texer_t tex, int pixel_x, int pixel_y, color_t color, unsigned int thickness) {
     float clip = clip_to_region(tex.mask, pixel_x, pixel_y);
@@ -246,17 +256,15 @@ texer_t _outline(texer_t tex, int pixel_x, int pixel_y, color_t color, unsigned 
 
     return tex;
 }
-texer_t _voronoi(texer_t tex, int pixel_x, int pixel_y, uint seed_points, uint random_seed) {
+texer_t _voronoi(texer_t tex, int pixel_x, int pixel_y, uint seed_points) {
     float clip = clip_to_region(tex.mask, pixel_x, pixel_y);
 
     /* determine nearest seed point for current pixel */
-    const int  I32_MAX      = 0x7FFFFFFF;
-    const uint U32_MAX      = 4294967295;
     int nearest_seed_index = -1;
     int min_distance       = I32_MAX;
     for (int i = 0; i < seed_points; i++) {
-        uint seed_point_x = tex.mask.x + _rand(random_seed+(i * seed_points)) % tex.mask.w;
-        uint seed_point_y = tex.mask.y + _rand(random_seed+(i+1)*seed_points) % tex.mask.h;
+        uint seed_point_x = tex.mask.x + _rand(tex.seed+(i * seed_points)) % tex.mask.w;
+        uint seed_point_y = tex.mask.y + _rand(tex.seed+(i+1)*seed_points) % tex.mask.h;
         int distance = squared_distance(pixel_x, pixel_y, seed_point_x, seed_point_y);
         if (distance < min_distance) {
             min_distance = distance;

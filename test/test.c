@@ -3,6 +3,10 @@
 
 #include "common.h"
 
+#include <math.h>   // for sinf
+#include <time.h>   // for seeding srand()
+#include <stdlib.h> // for rand()
+
 #include <stdio.h>
 
 #define TEXTURE_ATLAS_WIDTH  96
@@ -30,6 +34,8 @@ __attribute__((visibility("default"))) int alloc_texture(state_t* state) {
 
 #define lerp(t, a, b) (a + t * (b - a))
 static float timer = 0;
+static uint random_seed_per_sec   = 0;
+static uint random_seed_per_frame = 0;
 
 typedef struct thread_t { pthread_t id; int nr; int count; texture_t* tex; texer_t builder; } thread_t;
 void* tex_build(void* args)
@@ -39,18 +45,13 @@ void* tex_build(void* args)
 
     thread_t* t = (thread_t*) args;
     texer_threaded(*t->tex, t->builder, t->nr, t->count) {
-        texer_rect(0,64,32,32) {
-            color(BLACK);
-            voronoi(9, 3);
-        }
-    }
-
-    texer_threaded(*t->tex, t->builder, t->nr, t->count) {
         color(NONE);
 
         /* creeper face */
         texer_rect(0,0,32,32)   {
             color(GREEN);
+            seed((int)rand());
+            //seed(random_seed_per_frame);
             noise(1.0);
             texer_rect(4,8,8,8) {
                 color(BLACK);
@@ -130,10 +131,12 @@ void* tex_build(void* args)
             }
         }
 
+        /* art painting (TODO turn into shattered mirror) */
         texer_rect(64,32,32,32) {
             color(GRAY);
             outline(BROWN, 2) {
-                voronoi(10, 4);
+                seed(1);
+                voronoi(10);
             }
         }
 
@@ -161,11 +164,14 @@ __attribute__((visibility("default"))) int generate_textures(state_t* state, flo
     timer += dt;
 
     /* reset srand() */
-    //static unsigned int random = 0;
-    //srand(time(0) + random); // reseeds every frame
-    srand(time(0)); // reseeds every second
-    //srand(); // no reseeding
-    //random = rand();
+
+    /* reseeds every frame */
+    srand(time(0) + random_seed_per_frame);
+    random_seed_per_frame = (uint) rand();
+
+    /* reseed every second */
+    //srand(time(0));
+    //random_seed_per_sec   = (uint) rand();
 
     texture_t atlas = {0};
 
