@@ -69,6 +69,16 @@ struct color_t       { float r; float g; float b; float a;        };
 struct texture_t     { uint width; uint height; color_t* rgb; };
 
 /* used internally */
+enum {
+      CLIPPING_SDF_NONE,
+      CLIPPING_SDF_CIRCLE,
+      CLIPPING_SDF_BOX,
+      CLIPPING_SDF_COUNT,
+};
+typedef struct clipping_sdf_t {
+    uint type;
+    int x,y,r,w,h;
+} clipping_sdf_t;
 typedef struct texer_t {
     texture_t tex;
 
@@ -84,6 +94,8 @@ typedef struct texer_t {
         int x, y;
         int w, h;
     } mask; // TODO rename to clipping_region
+
+    clipping_sdf_t sdf;
 
     /* used in for-loop macros */
     int i;
@@ -157,6 +169,21 @@ static inline uint get_index(texer_t texer, uint pixel_x, uint pixel_y) {
     return (pixel_y * texer.atlas_width) + pixel_x;
     #endif
 }
+
+static inline float sdf(clipping_sdf_t sdf) {
+    float in = 0;
+    switch (sdf.type) {
+        case CLIPPING_SDF_BOX : {
+            //vec2 d = abs(p)-b;
+            //in = length(max(d,0.0)) + min(max(d.x,d.y),0.0);
+        } break;
+        case CLIPPING_SDF_CIRCLE : {
+            //in = length(p) - r;
+        } break;
+    }
+
+    return in;
+};
 
 #ifndef RUN_ON_COMPUTE_SHADER
   #define _texer_for_every_pixel(thread_id, thread_count) \

@@ -288,6 +288,7 @@ int main(int argc, char* args[])
     }
 
     int running = 1;
+    int paused  = 0;
     SDL_Event event;
     int mouse_x, mouse_y;
     float pos_x = 0, pos_y = 0;
@@ -323,7 +324,7 @@ int main(int argc, char* args[])
         }
 
         /* generate textures again */
-        {
+        if (!paused) {
             generate_textures(state,dt);
             upload_textures(state);
             ///* free allocated textures */
@@ -338,6 +339,11 @@ int main(int argc, char* args[])
             switch (event.type)
             {
                 case SDL_QUIT: { running = 0; } break;
+                case SDL_KEYDOWN:
+                {
+                    SDL_Keycode keycode = event.key.keysym.sym;
+                    if(keycode == SDLK_SPACE) { paused = !paused; }
+                } break;
             }
         }
 
