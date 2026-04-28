@@ -1,5 +1,6 @@
 #include <GL/glew.h>
 #include <SDL2/SDL.h>
+#include <SDL2/SDL_error.h>
 #include <SDL2/SDL_loadso.h>  // cross platform dll loading
 
 #include "../texer.h"
@@ -139,7 +140,9 @@ int platform_load_code()
     }
 
     dll_handle = SDL_LoadObject(DLL_FILENAME);
-    if (dll_handle == NULL) { printf("Opening DLL failed. Trying again...\n"); }
+    if (dll_handle == NULL) { 
+        printf("Opening DLL failed with error: '%s'. Trying again...\n", SDL_GetError()); 
+    }
     while (dll_handle == NULL) /* NOTE keep trying to load dll */
     {
         dll_handle = SDL_LoadObject(DLL_FILENAME);

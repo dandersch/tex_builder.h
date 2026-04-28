@@ -140,18 +140,133 @@ void* tex_build(void* args)
             }
         }
 
+        /* sunset over water */
         texer_rect(0,64,32,32) {
-            color(BLACK);
-        }
-
-        /* using for loops for generating */
-        for (int i = 0; i < 3; i++) {
-            texer_rect(32 * i,64,32,32) {
-                switch (i) {
-                    case 1: { color(MAGENTA); } break;
-                    case 2: { color(CYAN);    } break;
+            /* sky bands (top -> horizon) */
+            color((color_t){lerp(zero_to_one, 0.2, 0.8), 0.05, 0.95 , 1});  /* deep purple sky */
+            texer_rectcut_top(16) {
+                texer_rectcut_bottom(4 * zero_to_one) {
+                    color((color_t){0.9, 0.4, 0.2, 1});            /* orange band */
+                    texer_rectcut_bottom(2 * zero_to_one) {
+                        color((color_t){1.0, 0.85, 0.3, 1});       /* yellow horizon */
+                    }
                 }
             }
+
+            /* sun: a 6x6 square that rises/sets with the timer */
+            int sun_y = (int) lerp(zero_to_one, 4, 14);
+            texer_rect(13, sun_y, 6, 6) {
+                color((color_t){1.0, 0.9, 0.4, 1});
+                /* clip the corners to fake a circle */
+                texer_rect(0,0,1,1) { color(NONE); }
+                texer_rect(5,0,1,1) { color(NONE); }
+                texer_rect(0,5,1,1) { color(NONE); }
+                texer_rect(5,5,1,1) { color(NONE); }
+            }
+
+            /* water (bottom half) */
+            texer_rectcut_bottom(16) {
+                color((color_t){0.1, 0.2, 0.5, 1});
+                noise(0.2);
+
+                /* wavering reflection of the sun */
+                int refl_x = 13 + (int) lerp(zero_to_one, -2, 2);
+                texer_rect(refl_x, 2, 6, 1) { color((color_t){1.0, 0.85, 0.3, 0.7}); }
+                texer_rect(refl_x+1, 6, 4, 1) { color((color_t){1.0, 0.7, 0.25, 0.5}); }
+                texer_rect(refl_x, 10, 6, 1) { color((color_t){0.9, 0.5, 0.2, 0.4}); }
+            }
+
+            outline(BLACK, 1) {}
+        }
+
+        /* treasure chest */
+        texer_rect(32,64,32,32) {
+            color(NONE);
+
+            /* chest body (lower portion) */
+            texer_rect(2, 12, 28, 18) {
+                color(BROWN);
+                noise(0.15);
+
+                /* horizontal wood plank seams */
+                texer_rect(0, 5,  28, 1) { color((color_t){0.3, 0.15, 0.0, 1}); }
+                texer_rect(0, 11, 28, 1) { color((color_t){0.3, 0.15, 0.0, 1}); }
+
+                /* iron bands on the sides */
+                texer_rectcut_left(2)  { color((color_t){0.3, 0.25, 0.2, 1}); }
+                texer_rectcut_right(2) { color((color_t){0.3, 0.25, 0.2, 1}); }
+
+                /* lock plate */
+                texer_rect(11, 4, 6, 8) {
+                    color(YELLOW);
+                    noise(0.1);
+                    /* keyhole */
+                    texer_rect(2, 3, 2, 3) { color(BLACK); }
+                    outline(((color_t){0.5, 0.35, 0.0, 1}), 1) {}
+                }
+            }
+
+            /* chest lid (upper portion) */
+            texer_rect(2, 4, 28, 9) {
+                color((color_t){0.5, 0.25, 0.0, 1});
+                noise(0.15);
+
+                /* lid lip / shadow under lid */
+                texer_rectcut_bottom(1) { color((color_t){0.25, 0.12, 0.0, 1}); }
+
+                /* iron straps on lid */
+                texer_rectcut_left(2)  { color((color_t){0.3, 0.25, 0.2, 1}); }
+                texer_rectcut_right(2) { color((color_t){0.3, 0.25, 0.2, 1}); }
+
+                /* center iron strap */
+                texer_rect(13, 0, 2, 9) { color((color_t){0.3, 0.25, 0.2, 1}); }
+            }
+
+            /* gold sparkle that orbits the lock */
+            int sparkle_x = 16 + (int) lerp(zero_to_one,  6, -6);
+            int sparkle_y = 18 + (int) lerp(zero_to_one, -3,  3);
+            texer_rect(sparkle_x,     sparkle_y,     1, 1) { color(WHITE); }
+            texer_rect(sparkle_x - 1, sparkle_y,     1, 1) { color(YELLOW); }
+            texer_rect(sparkle_x + 1, sparkle_y,     1, 1) { color(YELLOW); }
+            texer_rect(sparkle_x,     sparkle_y - 1, 1, 1) { color(YELLOW); }
+            texer_rect(sparkle_x,     sparkle_y + 1, 1, 1) { color(YELLOW); }
+
+            outline(BLACK, 1) {}
+        }
+
+        /* heartbeat monitor */
+        texer_rect(64,64,32,32) {
+            color(BLACK);
+
+            /* faint grid lines */
+            for (int gx = 0; gx < 4; gx++) {
+                texer_rect(gx*8, 0, 1, 32) { color((color_t){0,0.15,0,1}); }
+            }
+            for (int gy = 0; gy < 4; gy++) {
+                texer_rect(0, gy*8, 32, 1) { color((color_t){0,0.15,0,1}); }
+            }
+
+            /* baseline */
+            texer_rect(0, 16, 32, 1) { color((color_t){0, 0.6, 0.1, 1}); }
+
+            /* QRS spike: sweeps left->right, then wraps (sawtooth) */
+            float sweep_t = fmodf(timer, 2.0f) / 2.0f; /* 0..1 then resets */
+            int sweep_x = (int) lerp(sweep_t, 0, 31);
+            /* small dip before */
+            texer_rect(sweep_x - 2, 17, 1, 2) { color(GREEN); }
+            /* tall up-spike */
+            texer_rect(sweep_x - 1, 6,  1, 11) { color(GREEN); }
+            /* down-spike */
+            texer_rect(sweep_x,     17, 1, 7) { color(GREEN); }
+            /* small bump after */
+            texer_rect(sweep_x + 1, 14, 1, 2) { color(GREEN); }
+            /* return to baseline */
+            texer_rect(sweep_x + 2, 16, 1, 1) { color(WHITE); }
+
+            /* scanline tail (fading) behind the sweep */
+            texer_rect(sweep_x + 3, 16, 3, 1) { color((color_t){0, 0.4, 0.05, 0.7}); }
+
+            outline(((color_t){0, 0.3, 0.05, 1}), 1) {}
         }
     }
 
